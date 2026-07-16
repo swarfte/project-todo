@@ -12,25 +12,17 @@ class APIService {
     await connectDB();
   }
 
-  Future<void> connectDB() async {
+  Future<bool> connectDB() async {
     String apiUrl = await _configService.getApiUrl();
     _pb = PocketBase(apiUrl);
-  }
 
-  Future<bool> login() async {
-    if (_pb == null) {
-      await connectDB();
-    }
     String username = await _configService.getUsername();
     String password = await _configService.getPassword();
-    try {
-      _authData = await _pb!
-          .collection('users')
-          .authWithPassword(username, password);
-      return _authData != null && _pb!.authStore.isValid;
-    } catch (e) {
-      return false;
-    }
+    _authData = await _pb!
+        .collection('users')
+        .authWithPassword(username, password);
+
+    return _authData != null && _pb!.authStore.isValid;
   }
 
   Future<bool> logout() async {
