@@ -27,59 +27,50 @@ class APIService {
       _authData = await _pb!
           .collection('users')
           .authWithPassword(username, password);
-      return true;
+      return _authData != null && _pb!.authStore.isValid;
     } catch (e) {
       return false;
     }
   }
 
-  Future<void> logout() async {
-    if (_pb != null) {
-      _pb!.authStore.clear();
-      _authData = null;
+  Future<bool> logout() async {
+    if (_pb == null) {
+      await connectDB();
     }
+    _pb!.authStore.clear();
+    _authData = null;
+    return true;
   }
 
   Future<bool> isLoggedIn() async {
     if (_pb == null) {
       await connectDB();
     }
-    if (_pb != null && _pb!.authStore.isValid) {
-      return true;
-    } else {
-      return false;
-    }
+    return _pb!.authStore.isValid;
   }
 
-  Future<void> authRefresh() async {
-    if (_pb != null && _authData != null) {
-      try {
-        _authData = await _pb!.collection('users').authRefresh();
-      } catch (e) {
-        await logout();
-      }
+  Future<bool> authRefresh() async {
+    if (_pb == null) {
+      await connectDB();
     }
+    _authData = await _pb!.collection('users').authRefresh();
+
+    return _pb!.authStore.isValid;
   }
 
   Future<List<RecordModel>> getProjects() async {
     if (_pb == null) {
       await connectDB();
     }
-    if (_pb != null) {
-      return await _pb!.collection('projects').getFullList();
-    } else {
-      throw Exception('PocketBase instance is not initialized.');
-    }
+
+    return await _pb!.collection('projects').getFullList();
   }
 
   Future<List<RecordModel>> getTasks() async {
     if (_pb == null) {
       await connectDB();
     }
-    if (_pb != null) {
-      return await _pb!.collection('tasks').getFullList();
-    } else {
-      throw Exception('PocketBase instance is not initialized.');
-    }
+
+    return await _pb!.collection('tasks').getFullList();
   }
 }
