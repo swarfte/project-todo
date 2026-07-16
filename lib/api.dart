@@ -61,4 +61,26 @@ class APIService {
       }
     }
   }
+
+  Future<List<RecordModel>> getProjects() async {
+    if (pb == null) {
+      await refreshConfig();
+    }
+    if (pb != null) {
+      return await pb!.collection('projects').getFullList();
+    } else {
+      throw Exception('PocketBase instance is not initialized.');
+    }
+  }
+
+  Future<List<RecordModel>> getTasks() async {
+    if (pb == null) {
+      await refreshConfig();
+    }
+    if (pb != null) {
+      return await pb!.collection('tasks').getFullList();
+    } else {
+      throw Exception('PocketBase instance is not initialized.');
+    }
+  }
 }
