@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:project_todo/preferences.dart';
+import 'package:project_todo/api.dart';
 
 class SettingDialog extends StatefulWidget {
   SettingDialog({super.key});
@@ -76,6 +77,17 @@ class _SettingDialogState extends State<SettingDialog> {
             await configService.saveApiUrl(apiUrl);
             await configService.saveUsername(username);
             await configService.savePassword(password);
+
+            final apiService = APIService();
+            final isSuccess = await apiService.connectDB();
+
+            if (isSuccess) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Settings saved and connected successfully!'),
+                ),
+              );
+            }
 
             if (!mounted) return;
             Navigator.of(context).pop(true);
