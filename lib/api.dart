@@ -69,7 +69,7 @@ class APIService {
       await connectDB();
     }
 
-    return await _pb!.collection('tasks').getFullList();
+    return await _pb!.collection('Task').getFullList();
   }
 
   Future<bool> createProject(String name) async {
@@ -84,11 +84,21 @@ class APIService {
       "completedAt": null,
     };
 
+    // print('user id: ${_authData!.record.id}');
+
     try {
-      await _pb!.collection('projects').create(body: body, files: []);
-      return true;
+      final response = await _pb!
+          .collection('Project')
+          .create(body: body, files: []);
+      // if response is 200, else 404 or 400 return false
+      // if (response.id.isNotEmpty) {
+      //   return true;
+      // } else {
+      //   return false;
+      // }
+      return response.id.isNotEmpty ? true : false;
     } catch (e) {
-      print('Error creating project: $e');
+      print('Error when creating project: $e');
       return false;
     }
   }

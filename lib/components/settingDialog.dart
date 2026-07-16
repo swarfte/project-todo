@@ -3,6 +3,7 @@ import 'package:project_todo/preferences.dart';
 import 'package:project_todo/api.dart';
 import 'package:project_todo/components/errorMessageBox.dart';
 import 'package:project_todo/components/loadingProgressBar.dart';
+import 'package:project_todo/components/successSnackBar.dart';
 
 class SettingDialog extends StatefulWidget {
   const SettingDialog({super.key});
@@ -85,23 +86,14 @@ class _SettingDialogState extends State<SettingDialog> {
       }
 
       // Close only when the connection succeeds.
-
-      final messenger = ScaffoldMessenger.of(context);
-      final navigator = Navigator.of(context);
-
-      // Close only when the connection succeeds.
-      navigator.pop(true);
+      Navigator.of(context).pop(true);
 
       // Show a success message at the bottom.
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Settings saved and connection successful.'),
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 2),
-          ),
-        );
+      final messenger = ScaffoldMessenger.of(context);
+      SuccessSnackBar.show(
+        messenger,
+        message: 'Settings saved and connection successful.',
+      );
     } catch (error) {
       if (!mounted) return;
 

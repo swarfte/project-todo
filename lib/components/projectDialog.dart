@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:project_todo/api.dart';
 import 'package:project_todo/components/errorMessageBox.dart';
+import 'package:project_todo/components/successSnackBar.dart';
 
 class ProjectDialog extends StatefulWidget {
   const ProjectDialog({super.key});
@@ -21,7 +22,41 @@ class _ProjectDialogState extends State<ProjectDialog> {
     super.dispose();
   }
 
-  Future<void> _createProject() async {}
+  Future<void> _createProject() async {
+    final projectName = _projectNameController.text.trim();
+
+    if (projectName.isEmpty) {
+      setState(() {
+        _errorMessage = 'Project name cannot be empty.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSending = true;
+      _errorMessage = null; // Clear previous error messages
+    });
+
+    final apiService = APIService();
+    final isSuccess = await apiService.createProject(projectName);
+
+    if (!isSuccess) {
+      setState(() {
+        _errorMessage = 'Failed to create project.';
+      });
+      return;
+    }
+
+    // Close the dialog on success.
+    if (mounted && isSuccess) {
+      Navigator.of(context).pop();
+      final messenger = ScaffoldMessenger.of(context);
+      SuccessSnackBar.show(
+        messenger,
+        message: 'Project $projectName created successfully.',
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
