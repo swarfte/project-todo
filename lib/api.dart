@@ -1,5 +1,6 @@
 import 'package:pocketbase/pocketbase.dart';
 import 'package:project_todo/preferences.dart';
+import 'package:project_todo/models.dart';
 
 class APIService {
   // singleton class
@@ -98,15 +99,41 @@ class APIService {
       final response = await _pb!
           .collection('projects')
           .create(body: body, files: []);
-      // if response is 200, else 404 or 400 return false
-      // if (response.id.isNotEmpty) {
-      //   return true;
-      // } else {
-      //   return false;
-      // }
       return response.id.isNotEmpty ? true : false;
     } catch (e) {
       print('Error when creating project: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateProject(Project project) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    final body = {'name': project.name, 'isCompleted': project.isCompleted};
+
+    try {
+      final response = await _pb!
+          .collection('projects')
+          .update(project.id, body: body, files: []);
+      return response.id.isNotEmpty ? true : false;
+    } catch (e) {
+      print('Error when updating project: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteProject(String projectId) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    try {
+      await _pb!.collection('projects').delete(projectId);
+      return true;
+    } catch (e) {
+      print('Error when deleting project: $e');
       return false;
     }
   }
