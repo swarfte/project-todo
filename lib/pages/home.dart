@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:project_todo/components/settingDialog.dart';
+import 'package:project_todo/components/projectDialog.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -35,12 +36,17 @@ class _HomePageState extends State<HomePage> {
       body: Center(child: Column()),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // action when the button is pressed
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return ProjectDialog();
+            },
+          );
         },
-        backgroundColor: Colors.green[300], // 2. 設定按鈕背景顏色
-        foregroundColor: Colors.white, // 1. 設定按鈕圖示顏色
-        tooltip: 'create new project', // 4. 長按時顯示的提示文字
-        child: Icon(Icons.add), // 3. 設定中間的加號圖示
+        backgroundColor: Colors.green[300],
+        foregroundColor: Colors.white, //
+        tooltip: 'create new project',
+        child: Icon(Icons.add),
       ),
     );
   }

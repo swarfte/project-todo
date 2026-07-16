@@ -71,4 +71,25 @@ class APIService {
 
     return await _pb!.collection('tasks').getFullList();
   }
+
+  Future<bool> createProject(String name) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    final body = {
+      'name': name,
+      "isCompleted": false,
+      "user": _authData!.record.id,
+      "completedAt": null,
+    };
+
+    try {
+      await _pb!.collection('projects').create(body: body, files: []);
+      return true;
+    } catch (e) {
+      print('Error creating project: $e');
+      return false;
+    }
+  }
 }
