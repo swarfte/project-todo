@@ -2,6 +2,8 @@ import 'package:project_todo/models.dart';
 
 class ProjectAdaptor {
   static Project fromJson(Map<String, dynamic> json) {
+    // PocketBase serializes empty date fields as "" rather than null.
+    final completedAtStr = json['completedAt'] as String?;
     return Project(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -9,8 +11,8 @@ class ProjectAdaptor {
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       isCompleted: json['isCompleted'] as bool,
-      completedAt: json['completedAt'] != null
-          ? DateTime.parse(json['completedAt'] as String)
+      completedAt: completedAtStr != null && completedAtStr.isNotEmpty
+          ? DateTime.parse(completedAtStr)
           : null,
     );
   }
@@ -30,6 +32,9 @@ class ProjectAdaptor {
 
 class TaskAdaptor {
   static Task fromJson(Map<String, dynamic> json) {
+    // PocketBase serializes empty date fields as "" rather than null.
+    final dueDateStr = json['dueDate'] as String?;
+    final completedAtStr = json['completedAt'] as String?;
     return Task(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -37,12 +42,12 @@ class TaskAdaptor {
       isCompleted: json['isCompleted'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
-      dueDate: json['dueDate'] != null
-          ? DateTime.parse(json['dueDate'] as String)
+      dueDate: dueDateStr != null && dueDateStr.isNotEmpty
+          ? DateTime.parse(dueDateStr)
           : null,
       previousTaskId: json['previousTaskId'] as String?,
-      completedAt: json['completedAt'] != null
-          ? DateTime.parse(json['completedAt'] as String)
+      completedAt: completedAtStr != null && completedAtStr.isNotEmpty
+          ? DateTime.parse(completedAtStr)
           : null,
     );
   }
