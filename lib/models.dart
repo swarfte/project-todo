@@ -24,7 +24,6 @@ class Task {
   String id;
   String name;
   String projectId;
-  String userId;
   bool isCompleted;
   DateTime? dueDate;
   DateTime createdAt;
@@ -36,7 +35,6 @@ class Task {
     required this.id,
     required this.name,
     required this.projectId,
-    required this.userId,
     required this.isCompleted,
     required this.createdAt,
     required this.updatedAt,
