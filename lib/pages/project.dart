@@ -6,6 +6,7 @@ import 'package:project_todo/components/createProjectDialog.dart';
 import 'package:project_todo/components/editProjectDialog.dart';
 import 'package:project_todo/components/successSnackBar.dart';
 import 'package:project_todo/models.dart';
+import 'package:project_todo/pages/task.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -247,6 +248,14 @@ class _HomePageState extends State<HomePage> {
               ),
               title: Text(project.name),
               subtitle: Text('Created ${_formatDate(project.createdAt)}'),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (BuildContext context) =>
+                        TaskPage(project: project),
+                  ),
+                );
+              },
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [

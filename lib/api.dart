@@ -106,6 +106,32 @@ class APIService {
     }
   }
 
+  Future<bool> createTask(String name, String projectId) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    final body = {
+      'name': name,
+      'projectId': projectId,
+      'userId': _authData!.record.id,
+      'isCompleted': false,
+      'dueDate': null,
+      'previousTaskId': null,
+      'completedAt': null,
+    };
+
+    try {
+      final response = await _pb!
+          .collection('tasks')
+          .create(body: body, files: []);
+      return response.id.isNotEmpty ? true : false;
+    } catch (e) {
+      print('Error when creating task: $e');
+      return false;
+    }
+  }
+
   Future<bool> updateProject(Project project) async {
     if (_pb == null) {
       await connectDB();
@@ -138,20 +164,14 @@ class APIService {
     }
   }
 
-  Future<bool> getTaskListByProjectId(String projectId) async {
+  Future<List<RecordModel>> getTaskListByProjectId(String projectId) async {
     if (_pb == null) {
       await connectDB();
     }
 
-    try {
-      final response = await _pb!
-          .collection('tasks')
-          .getList(filter: 'projectId="$projectId"');
-      return response.items.isNotEmpty ? true : false;
-    } catch (e) {
-      print('Error when getting task list by project id: $e');
-      return false;
-    }
+    return await _pb!.collection('tasks').getFullList(
+          filter: 'projectId="$projectId"',
+        );
   }
 
   Future<bool> updateTask(Task task) async {
