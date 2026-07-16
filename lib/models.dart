@@ -43,3 +43,23 @@ class Task {
     this.completedAt,
   });
 }
+
+class Step {
+  String id;
+  String name;
+  String taskId;
+  bool isCompleted;
+  DateTime createdAt;
+  DateTime updatedAt;
+  Step previousStep;
+
+  Step({
+    required this.id,
+    required this.name,
+    required this.taskId,
+    required this.isCompleted,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.previousStep,
+  });
+}
