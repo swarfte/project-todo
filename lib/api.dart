@@ -56,7 +56,7 @@ class APIService {
     return _pb!.authStore.isValid;
   }
 
-  Future<List<RecordModel>> getProjects() async {
+  Future<List<RecordModel>> getProjectList() async {
     if (_pb == null) {
       await connectDB();
     }
@@ -64,12 +64,20 @@ class APIService {
     return await _pb!.collection('projects').getFullList();
   }
 
-  Future<List<RecordModel>> getTasks() async {
+  Future<List<RecordModel>> getTaskList() async {
     if (_pb == null) {
       await connectDB();
     }
 
-    return await _pb!.collection('Task').getFullList();
+    return await _pb!.collection('tasks').getFullList();
+  }
+
+  Future<List<RecordModel>> getStepList() async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    return await _pb!.collection('steps').getFullList();
   }
 
   Future<bool> createProject(String name) async {
@@ -80,7 +88,7 @@ class APIService {
     final body = {
       'name': name,
       "isCompleted": false,
-      "user": _authData!.record.id,
+      "userId": _authData!.record.id,
       "completedAt": null,
     };
 
@@ -88,7 +96,7 @@ class APIService {
 
     try {
       final response = await _pb!
-          .collection('Project')
+          .collection('projects')
           .create(body: body, files: []);
       // if response is 200, else 404 or 400 return false
       // if (response.id.isNotEmpty) {

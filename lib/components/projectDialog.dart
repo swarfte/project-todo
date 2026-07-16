@@ -23,6 +23,9 @@ class _ProjectDialogState extends State<ProjectDialog> {
   }
 
   Future<void> _createProject() async {
+    // Avoid duplicate submissions.
+    if (_isSending) return;
+
     final projectName = _projectNameController.text.trim();
 
     if (projectName.isEmpty) {
@@ -34,27 +37,40 @@ class _ProjectDialogState extends State<ProjectDialog> {
 
     setState(() {
       _isSending = true;
-      _errorMessage = null; // Clear previous error messages
+      _errorMessage = null;
     });
 
-    final apiService = APIService();
-    final isSuccess = await apiService.createProject(projectName);
+    try {
+      final apiService = APIService();
+      final isSuccess = await apiService.createProject(projectName);
 
-    if (!isSuccess) {
-      setState(() {
-        _errorMessage = 'Failed to create project.';
-      });
-      return;
-    }
+      // The dialog may have been removed while waiting for the API.
+      if (!mounted) return;
 
-    // Close the dialog on success.
-    if (mounted && isSuccess) {
-      Navigator.of(context).pop();
+      if (!isSuccess) {
+        setState(() {
+          _isSending = false;
+          _errorMessage = 'Failed to create project.';
+        });
+        return;
+      }
+
+      // Get the messenger before closing the dialog.
       final messenger = ScaffoldMessenger.of(context);
+
+      Navigator.of(context).pop();
+
       SuccessSnackBar.show(
         messenger,
         message: 'Project $projectName created successfully.',
       );
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _isSending = false;
+        _errorMessage = 'Failed to create project. Please try again.';
+      });
     }
   }
 
