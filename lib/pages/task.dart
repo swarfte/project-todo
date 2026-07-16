@@ -60,7 +60,10 @@ class _TaskPageState extends State<TaskPage> {
     await showDialog<void>(
       context: context,
       builder: (BuildContext context) {
-        return CreateTaskDialog(projectId: widget.project.id);
+        return CreateTaskDialog(
+          projectId: widget.project.id,
+          existingTasks: _tasks,
+        );
       },
     );
 
@@ -94,7 +97,7 @@ class _TaskPageState extends State<TaskPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.project.name),
-        backgroundColor: Colors.blue[600],
+        backgroundColor: Colors.deepPurple[600],
         foregroundColor: Colors.white, // set text color to white
       ),
       body: _buildBody(),
@@ -150,6 +153,9 @@ class _TaskPageState extends State<TaskPage> {
       );
     }
 
+    // Look up a task's name by id for "After:" labels.
+    final taskNameById = {for (final t in _tasks) t.id: t.name};
+
     return RefreshIndicator(
       onRefresh: _loadTasks,
       child: ListView.builder(
@@ -157,9 +163,15 @@ class _TaskPageState extends State<TaskPage> {
         itemCount: _tasks.length,
         itemBuilder: (BuildContext context, int index) {
           final task = _tasks[index];
-          final subtitle = task.dueDate != null
+          final base = task.dueDate != null
               ? 'Due ${_formatDate(task.dueDate!)}'
               : 'Created ${_formatDate(task.createdAt)}';
+          final previousName = task.previousTaskId == null
+              ? null
+              : taskNameById[task.previousTaskId!];
+          final subtitle = previousName != null
+              ? '$base · After: $previousName'
+              : base;
 
           return Card(
             child: ListTile(

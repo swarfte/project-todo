@@ -106,7 +106,11 @@ class APIService {
     }
   }
 
-  Future<bool> createTask(String name, String projectId) async {
+  Future<bool> createTask(
+    String name,
+    String projectId, {
+    String? previousTaskId,
+  }) async {
     if (_pb == null) {
       await connectDB();
     }
@@ -117,7 +121,7 @@ class APIService {
       'userId': _authData!.record.id,
       'isCompleted': false,
       'dueDate': null,
-      'previousTaskId': null,
+      'previousTaskId': previousTaskId,
       'completedAt': null,
     };
 
