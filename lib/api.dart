@@ -4,26 +4,25 @@ import 'package:project_todo/preferences.dart';
 class APIService {
   PocketBase? _pb;
   RecordAuth? _authData;
+  final ConfigService _configService = ConfigService();
 
   APIService();
 
   Future<void> init() async {
-    await refreshConfig();
+    await connectDB();
   }
 
-  Future<void> refreshConfig() async {
-    final configService = ConfigService();
-    String apiUrl = await configService.getApiUrl();
+  Future<void> connectDB() async {
+    String apiUrl = await _configService.getApiUrl();
     _pb = PocketBase(apiUrl);
   }
 
   Future<bool> login() async {
     if (_pb == null) {
-      await refreshConfig();
+      await connectDB();
     }
-    final configService = ConfigService();
-    String username = await configService.getUsername();
-    String password = await configService.getPassword();
+    String username = await _configService.getUsername();
+    String password = await _configService.getPassword();
     try {
       _authData = await _pb!
           .collection('users')
@@ -43,7 +42,7 @@ class APIService {
 
   Future<bool> isLoggedIn() async {
     if (_pb == null) {
-      await refreshConfig();
+      await connectDB();
     }
     if (_pb != null && _pb!.authStore.isValid) {
       return true;
@@ -64,7 +63,7 @@ class APIService {
 
   Future<List<RecordModel>> getProjects() async {
     if (_pb == null) {
-      await refreshConfig();
+      await connectDB();
     }
     if (_pb != null) {
       return await _pb!.collection('projects').getFullList();
@@ -75,7 +74,7 @@ class APIService {
 
   Future<List<RecordModel>> getTasks() async {
     if (_pb == null) {
-      await refreshConfig();
+      await connectDB();
     }
     if (_pb != null) {
       return await _pb!.collection('tasks').getFullList();
