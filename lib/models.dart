@@ -6,6 +6,7 @@ class Project {
   DateTime updatedAt;
   List<Task>? tasks;
   bool isCompleted;
+  DateTime? completedAt;
 
   Project({
     required this.id,
@@ -13,8 +14,9 @@ class Project {
     required this.userId,
     required this.createdAt,
     required this.updatedAt,
-    required this.tasks,
+    this.tasks,
     required this.isCompleted,
+    this.completedAt,
   });
 }
 
@@ -28,6 +30,7 @@ class Task {
   DateTime createdAt;
   DateTime updatedAt;
   Task? previousTask;
+  DateTime? completedAt;
 
   Task({
     required this.id,
@@ -37,7 +40,8 @@ class Task {
     required this.isCompleted,
     required this.createdAt,
     required this.updatedAt,
-    required this.dueDate,
-    required this.previousTask,
+    this.dueDate,
+    this.previousTask,
+    this.completedAt,
   });
 }
