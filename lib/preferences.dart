@@ -1,9 +1,17 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ConfigService {
+  // singleton class to manage configuration settings
+  ConfigService._internal();
+
   static const String _apiUrlKey = 'api_url';
   static const String _usernameKey = 'username';
   static const String _passwordKey = 'password';
+  static final ConfigService _instance = ConfigService._internal();
+
+  factory ConfigService() {
+    return _instance;
+  }
 
   Future<void> saveApiUrl(String value) async {
     final preference = await SharedPreferences.getInstance();

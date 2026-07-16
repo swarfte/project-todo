@@ -2,11 +2,17 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:project_todo/preferences.dart';
 
 class APIService {
+  // singleton class
+  APIService._internal();
   PocketBase? _pb;
   RecordAuth? _authData;
   final ConfigService _configService = ConfigService();
 
-  APIService();
+  static final APIService _instance = APIService._internal();
+
+  factory APIService() {
+    return _instance;
+  }
 
   Future<void> init() async {
     await connectDB();
