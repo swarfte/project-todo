@@ -37,25 +37,6 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
     super.dispose();
   }
 
-  /// Builds the chain leading up to the new task, e.g.
-  /// "Task A  ->  Task B  ->  New Task".
-  List<Task> _buildChain(Task leaf) {
-    final byId = {for (final t in widget.existingTasks) t.id: t};
-    final chain = <Task>[leaf];
-    Task? current = leaf;
-    final visited = <String>{leaf.id};
-
-    while (current?.previousTaskId != null) {
-      final prev = byId[current!.previousTaskId!];
-      if (prev == null || visited.contains(prev.id)) break;
-      chain.insert(0, prev);
-      visited.add(prev.id);
-      current = prev;
-    }
-
-    return chain;
-  }
-
   Future<void> _createTask() async {
     // Avoid duplicate submissions.
     if (_isSending) return;
@@ -112,103 +93,6 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
     }
   }
 
-  Widget _buildChainPreview() {
-    final newTaskName = _taskNameController.text.trim();
-    final displayNewName =
-        newTaskName.isEmpty ? 'New Task' : newTaskName;
-
-    final children = <Widget>[];
-
-    if (_selectedPreviousTask != null) {
-      final chain = _buildChain(_selectedPreviousTask!);
-      children.add(_chainChip(_selectedPreviousTask!.name,
-          isPlaceholder: false, icon: Icons.adjust));
-      // Show the full ancestor chain collapsed as a count if there is one.
-      if (chain.length > 1) {
-        children.insert(
-          0,
-          _chainChip('+${chain.length - 1} before', faded: true),
-        );
-      }
-    }
-
-    children.add(_chainChip(displayNewName,
-        isPlaceholder: newTaskName.isEmpty, highlight: true));
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.blue[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue[100]!),
-      ),
-      child: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 6,
-        runSpacing: 6,
-        children: _interleave(children),
-      ),
-    );
-  }
-
-  /// Inserts arrow separators between each chip.
-  List<Widget> _interleave(List<Widget> chips) {
-    final result = <Widget>[];
-    final arrow = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Icon(Icons.arrow_forward, size: 16, color: Colors.blue[400]),
-    );
-    for (var i = 0; i < chips.length; i++) {
-      result.add(chips[i]);
-      if (i < chips.length - 1) result.add(arrow);
-    }
-    return result;
-  }
-
-  Widget _chainChip(
-    String label, {
-    bool isPlaceholder = false,
-    bool faded = false,
-    bool highlight = false,
-    IconData? icon,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: highlight
-            ? Colors.blue[600]
-            : (faded ? Colors.grey[200] : Colors.white),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: highlight ? Colors.blue[600]! : Colors.blue[200]!,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Icon(icon,
-                  size: 14,
-                  color: highlight ? Colors.white : Colors.blue[400]),
-            ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              color: highlight
-                  ? Colors.white
-                  : (faded ? Colors.grey[500] : Colors.blue[800]),
-              fontStyle: isPlaceholder ? FontStyle.italic : null,
-              fontWeight: highlight ? FontWeight.w600 : null,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // When there are no existing tasks yet, there is nothing to select.
@@ -226,7 +110,6 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
               enabled: !_isSending,
               decoration: const InputDecoration(labelText: 'Task Name'),
               onSubmitted: (_) => _createTask(),
-              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 16),
 
@@ -261,28 +144,19 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
                         });
                       },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
+              Text(
+                _selectedPreviousTask == null
+                    ? 'This task will start a new chain.'
+                    : 'This task will come after "${_selectedPreviousTask!.name}".',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
             ] else ...[
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'This will be the first task in the project.',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                ),
+              Text(
+                'This will be the first task in the project.',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
               ),
             ],
-
-            // Live chain preview.
-            Text(
-              'Resulting order',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 6),
-            _buildChainPreview(),
 
             if (_errorMessage != null) ...[
               const SizedBox(height: 16),
