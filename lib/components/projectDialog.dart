@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:project_todo/api.dart';
+import 'package:project_todo/components/errorMessageBox.dart';
 
 class ProjectDialog extends StatefulWidget {
   const ProjectDialog({super.key});
@@ -36,6 +38,13 @@ class _ProjectDialogState extends State<ProjectDialog> {
               decoration: const InputDecoration(labelText: 'Project Name'),
               onSubmitted: (_) => _createProject(),
             ),
+
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 16),
+              ErrorMessageBox(errorMessage: _errorMessage!),
+            ],
+
+            if (_isSending) ...[const LinearProgressIndicator()],
           ],
         ),
       ),

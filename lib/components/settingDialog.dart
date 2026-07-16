@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:project_todo/preferences.dart';
 import 'package:project_todo/api.dart';
+import 'package:project_todo/components/errorMessageBox.dart';
+import 'package:project_todo/components/loadingProgressBar.dart';
 
 class SettingDialog extends StatefulWidget {
   const SettingDialog({super.key});
@@ -83,7 +85,23 @@ class _SettingDialogState extends State<SettingDialog> {
       }
 
       // Close only when the connection succeeds.
-      Navigator.of(context).pop(true);
+
+      final messenger = ScaffoldMessenger.of(context);
+      final navigator = Navigator.of(context);
+
+      // Close only when the connection succeeds.
+      navigator.pop(true);
+
+      // Show a success message at the bottom.
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Settings saved and connection successful.'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
     } catch (error) {
       if (!mounted) return;
 
@@ -138,40 +156,12 @@ class _SettingDialogState extends State<SettingDialog> {
             // Display connection error inside the dialog.
             if (_errorMessage != null) ...[
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.errorContainer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onErrorContainer,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              ErrorMessageBox(errorMessage: _errorMessage!),
             ],
 
             if (_isSaving) ...[
-              const SizedBox(height: 16),
-              const LinearProgressIndicator(),
-              const SizedBox(height: 8),
-              const Text(
-                'Saving settings and testing connection...',
-                textAlign: TextAlign.center,
+              const LoadingProgressBar(
+                message: 'Saving settings and testing connection...',
               ),
             ],
           ],
