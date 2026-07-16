@@ -3,14 +3,14 @@ import 'package:project_todo/api.dart';
 import 'package:project_todo/components/errorMessageBox.dart';
 import 'package:project_todo/components/successSnackBar.dart';
 
-class ProjectDialog extends StatefulWidget {
-  const ProjectDialog({super.key});
+class CreateProjectDialog extends StatefulWidget {
+  const CreateProjectDialog({super.key});
 
   @override
-  State<ProjectDialog> createState() => _ProjectDialogState();
+  State<CreateProjectDialog> createState() => _CreateProjectDialogState();
 }
 
-class _ProjectDialogState extends State<ProjectDialog> {
+class _CreateProjectDialogState extends State<CreateProjectDialog> {
   final TextEditingController _projectNameController = TextEditingController();
 
   String? _errorMessage;

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:project_todo/adaptor.dart';
 import 'package:project_todo/api.dart';
 import 'package:project_todo/components/settingDialog.dart';
-import 'package:project_todo/components/projectDialog.dart';
+import 'package:project_todo/components/createProjectDialog.dart';
 import 'package:project_todo/models.dart';
 
 class HomePage extends StatefulWidget {
@@ -33,8 +33,9 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final records = await _apiService.getProjectList();
-      final projects =
-          records.map((r) => ProjectAdaptor.fromJson(r.toJson())).toList();
+      final projects = records
+          .map((r) => ProjectAdaptor.fromJson(r.toJson()))
+          .toList();
 
       if (!mounted) return;
 
@@ -56,7 +57,7 @@ class _HomePageState extends State<HomePage> {
     await showDialog<void>(
       context: context,
       builder: (BuildContext context) {
-        return ProjectDialog();
+        return CreateProjectDialog();
       },
     );
 
@@ -80,7 +81,7 @@ class _HomePageState extends State<HomePage> {
       'Sep',
       'Oct',
       'Nov',
-      'Dec'
+      'Dec',
     ];
     return '${monthNames[date.month - 1]} ${date.day}, ${date.year}';
   }
@@ -148,13 +149,9 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.folder_off_outlined,
-                size: 48, color: Colors.grey[400]),
+            Icon(Icons.folder_off_outlined, size: 48, color: Colors.grey[400]),
             const SizedBox(height: 8),
-            Text(
-              'No projects yet.',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
+            Text('No projects yet.', style: TextStyle(color: Colors.grey[600])),
             const SizedBox(height: 4),
             Text(
               'Tap + to create your first project.',
