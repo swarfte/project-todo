@@ -4,7 +4,6 @@ class Project {
   String userId;
   DateTime createdAt;
   DateTime updatedAt;
-  List<Task>? tasks;
   bool isCompleted;
   DateTime? completedAt;
 
@@ -14,7 +13,6 @@ class Project {
     required this.userId,
     required this.createdAt,
     required this.updatedAt,
-    this.tasks,
     required this.isCompleted,
     this.completedAt,
   });
@@ -28,7 +26,7 @@ class Task {
   DateTime? dueDate;
   DateTime createdAt;
   DateTime updatedAt;
-  Task? previousTask;
+  String? previousTaskId;
   DateTime? completedAt;
 
   Task({
@@ -39,7 +37,7 @@ class Task {
     required this.createdAt,
     required this.updatedAt,
     this.dueDate,
-    this.previousTask,
+    this.previousTaskId,
     this.completedAt,
   });
 }
@@ -51,7 +49,7 @@ class Step {
   bool isCompleted;
   DateTime createdAt;
   DateTime updatedAt;
-  Step previousStep;
+  String? previousStepId;
 
   Step({
     required this.id,
@@ -60,6 +58,6 @@ class Step {
     required this.isCompleted,
     required this.createdAt,
     required this.updatedAt,
-    required this.previousStep,
+    this.previousStepId,
   });
 }
