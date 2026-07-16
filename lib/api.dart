@@ -137,4 +137,58 @@ class APIService {
       return false;
     }
   }
+
+  Future<bool> getTaskListByProjectId(String projectId) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    try {
+      final response = await _pb!
+          .collection('tasks')
+          .getList(filter: 'projectId="$projectId"');
+      return response.items.isNotEmpty ? true : false;
+    } catch (e) {
+      print('Error when getting task list by project id: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateTask(Task task) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    final body = {
+      'name': task.name,
+      'isCompleted': task.isCompleted,
+      'dueDate': task.dueDate?.toIso8601String(),
+      'previousTaskId': task.previousTaskId,
+      'completedAt': task.completedAt?.toIso8601String(),
+    };
+
+    try {
+      final response = await _pb!
+          .collection('tasks')
+          .update(task.id, body: body, files: []);
+      return response.id.isNotEmpty ? true : false;
+    } catch (e) {
+      print('Error when updating task: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteTask(String taskId) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    try {
+      await _pb!.collection('tasks').delete(taskId);
+      return true;
+    } catch (e) {
+      print('Error when deleting task: $e');
+      return false;
+    }
+  }
 }
