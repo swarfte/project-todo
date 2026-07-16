@@ -3,6 +3,8 @@ import 'package:project_todo/adaptor.dart';
 import 'package:project_todo/api.dart';
 import 'package:project_todo/components/settingDialog.dart';
 import 'package:project_todo/components/createProjectDialog.dart';
+import 'package:project_todo/components/editProjectDialog.dart';
+import 'package:project_todo/components/successSnackBar.dart';
 import 'package:project_todo/models.dart';
 
 class HomePage extends StatefulWidget {
@@ -65,6 +67,72 @@ class _HomePageState extends State<HomePage> {
     // projects show up immediately.
     if (mounted) {
       _loadProjects();
+    }
+  }
+
+  Future<void> _openEditProjectDialog(Project project) async {
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return EditProjectDialog(project: project);
+      },
+    );
+
+    // Refresh the list once the dialog is closed so edited
+    // projects show up immediately.
+    if (mounted) {
+      _loadProjects();
+    }
+  }
+
+  Future<void> _confirmDeleteProject(Project project) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Project'),
+          content: Text(
+            'Are you sure you want to delete "${project.name}"? '
+            'This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[400],
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    final isSuccess = await _apiService.deleteProject(project.id);
+
+    if (!mounted) return;
+
+    if (isSuccess) {
+      SuccessSnackBar.show(
+        messenger,
+        message: 'Project "${project.name}" deleted.',
+      );
+      _loadProjects();
+    } else {
+      SuccessSnackBar.show(
+        messenger,
+        message: 'Failed to delete "${project.name}".',
+      );
     }
   }
 
@@ -179,12 +247,53 @@ class _HomePageState extends State<HomePage> {
               ),
               title: Text(project.name),
               subtitle: Text('Created ${_formatDate(project.createdAt)}'),
-              trailing: project.isCompleted
-                  ? Chip(
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (project.isCompleted)
+                    Chip(
                       label: const Text('Done'),
                       backgroundColor: Colors.green[100],
-                    )
-                  : null,
+                    ),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    tooltip: 'Project actions',
+                    onSelected: (String value) {
+                      if (value == 'edit') {
+                        _openEditProjectDialog(project);
+                      } else if (value == 'delete') {
+                        _confirmDeleteProject(project);
+                      }
+                    },
+                    itemBuilder: (BuildContext context) => [
+                      const PopupMenuItem<String>(
+                        value: 'edit',
+                        child: ListTile(
+                          leading: Icon(Icons.edit_outlined),
+                          title: Text('Edit'),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'delete',
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.delete_outline,
+                            color: Colors.red[400],
+                          ),
+                          title: Text(
+                            'Delete',
+                            style: TextStyle(color: Colors.red[400]),
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           );
         },
