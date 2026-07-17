@@ -22,18 +22,55 @@ Color dueDateColor(DateTime dueDate) {
   return Colors.green;
 }
 
-/// Renders one task chain as a vertical timeline.
+/// One node in a flattened task tree, ready to render.
+///
+/// The tree is walked in pre-order; each entry remembers how deep it sits
+/// and where it falls among its siblings so the gutter can draw indent
+/// guides and elbow connectors (├── / └── / │) like a file-tree view.
+class FlatTaskNode {
+  const FlatTaskNode({
+    required this.task,
+    required this.depth,
+    required this.isFirstChild,
+    required this.isLastChild,
+    required this.hasChildren,
+    required this.ancestorIsLast,
+  });
+
+  final Task task;
+
+  /// 0 for a root, +1 for each level of nesting.
+  final int depth;
+
+  /// Whether this is the first successor of its parent.
+  final bool isFirstChild;
+
+  /// Whether this is the last successor of its parent.
+  final bool isLastChild;
+
+  /// Whether this node has any successors itself.
+  final bool hasChildren;
+
+  /// For each ancestor level (0..depth-1), whether that ancestor was the
+  /// last child of its own parent. Used to decide whether each ancestor's
+  /// vertical spine should keep going past this row.
+  final List<bool> ancestorIsLast;
+}
+
+/// Renders one task tree as an indented timeline. A predecessor can have
+/// many successors, so branches are drawn with elbow connectors instead
+/// of a single vertical line.
 class ChainTimeline extends StatelessWidget {
   const ChainTimeline({
     super.key,
-    required this.chain,
+    required this.nodes,
     required this.formatDate,
     required this.onToggleComplete,
     required this.onEdit,
     required this.onDelete,
   });
 
-  final List<Task> chain;
+  final List<FlatTaskNode> nodes;
   final String Function(DateTime date) formatDate;
   final void Function(Task task) onToggleComplete;
   final void Function(Task task) onEdit;
@@ -41,8 +78,6 @@ class ChainTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = chain.length;
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Card(
@@ -53,13 +88,9 @@ class ChainTimeline extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (int i = 0; i < total; i++)
-                TimelineRow(
-                  task: chain[i],
-                  position: i + 1,
-                  total: total,
-                  isFirst: i == 0,
-                  isLast: i == total - 1,
+              for (final node in nodes)
+                TreeRow(
+                  node: node,
                   formatDate: formatDate,
                   onToggleComplete: onToggleComplete,
                   onEdit: onEdit,
@@ -73,34 +104,33 @@ class ChainTimeline extends StatelessWidget {
   }
 }
 
-/// Renders one task inside a chain timeline.
-class TimelineRow extends StatelessWidget {
-  const TimelineRow({
+/// Renders one task inside the tree, with an indent gutter that draws the
+/// connector lines linking it to its parent and siblings.
+class TreeRow extends StatelessWidget {
+  const TreeRow({
     super.key,
-    required this.task,
-    required this.position,
-    required this.total,
-    required this.isFirst,
-    required this.isLast,
+    required this.node,
     required this.formatDate,
     required this.onToggleComplete,
     required this.onEdit,
     required this.onDelete,
   });
 
-  final Task task;
-  final int position;
-  final int total;
-  final bool isFirst;
-  final bool isLast;
+  final FlatTaskNode node;
   final String Function(DateTime date) formatDate;
   final void Function(Task task) onToggleComplete;
   final void Function(Task task) onEdit;
   final void Function(Task task) onDelete;
 
+  static const double cellWidth = 30;
+  static const double badgeSize = 26;
+  static const double badgeRadius = badgeSize / 2;
+
   @override
   Widget build(BuildContext context) {
-    final lineColor = Colors.blue[300]!;
+    final task = node.task;
+    final gutterWidth = (node.depth + 1) * cellWidth;
+    final badgeCenterX = (node.depth + 0.5) * cellWidth;
 
     final subtitle = task.dueDate != null
         ? 'Due ${formatDate(task.dueDate!)}'
@@ -110,42 +140,38 @@ class TimelineRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Timeline gutter: connector line and position badge.
+          // Gutter: connector lines + the toggle badge.
           SizedBox(
-            width: 44,
+            width: gutterWidth,
             child: Stack(
-              alignment: Alignment.center,
               children: [
-                Column(
-                  children: [
-                    // Top half of the timeline connector.
-                    Expanded(
-                      child: Container(
-                        width: 2,
-                        color: isFirst ? Colors.transparent : lineColor,
-                      ),
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _TreeGutterPainter(
+                      depth: node.depth,
+                      isFirstChild: node.isFirstChild,
+                      isLastChild: node.isLastChild,
+                      hasChildren: node.hasChildren,
+                      ancestorIsLast: node.ancestorIsLast,
+                      cellWidth: cellWidth,
+                      badgeRadius: badgeRadius,
+                      color: Colors.blue[300]!,
                     ),
-
-                    // Bottom half of the timeline connector.
-                    Expanded(
-                      child: Container(
-                        width: 2,
-                        color: isLast ? Colors.transparent : lineColor,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-
-                GestureDetector(
-                  onTap: () => onToggleComplete(task),
-                  child: Tooltip(
-                    message: task.isCompleted
-                        ? 'Mark as not done'
-                        : 'Mark as done',
-                    child: PositionBadege(
-                      position: position,
-                      total: total,
-                      isCompleted: task.isCompleted,
+                Positioned(
+                  left: badgeCenterX - badgeRadius,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: GestureDetector(
+                      onTap: () => onToggleComplete(task),
+                      child: Tooltip(
+                        message: task.isCompleted
+                            ? 'Mark as not done'
+                            : 'Mark as done',
+                        child: _NodeBadge(isCompleted: task.isCompleted),
+                      ),
                     ),
                   ),
                 ),
@@ -247,36 +273,140 @@ class TimelineRow extends StatelessWidget {
   }
 }
 
-/// Displays the task's position within its chain.
-class PositionBadege extends StatelessWidget {
-  const PositionBadege({
-    super.key,
-    required this.position,
-    required this.total,
-    required this.isCompleted,
-  });
+/// The circular node marker. A solid dot for pending tasks, a green check
+/// for completed ones. Tap toggles completion (handled by the parent).
+class _NodeBadge extends StatelessWidget {
+  const _NodeBadge({required this.isCompleted});
 
-  final int position;
-  final int total;
   final bool isCompleted;
 
   @override
   Widget build(BuildContext context) {
-    final color = isCompleted ? Colors.green : Colors.blue[600]!;
-
     return Container(
-      width: 28,
-      height: 28,
+      width: TreeRow.badgeSize,
+      height: TreeRow.badgeSize,
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      child: Text(
-        '$position/$total',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-        ),
+      decoration: BoxDecoration(
+        color: isCompleted ? Colors.green : Colors.blue[600],
+        shape: BoxShape.circle,
       ),
+      child: isCompleted
+          ? const Icon(Icons.check, size: 16, color: Colors.white)
+          : null,
     );
+  }
+}
+
+/// Draws the indent guides and elbow connectors for one row.
+///
+/// Layout (per ancestor level = one cell of [cellWidth]):
+/// - Ancestors above the direct parent: a full vertical spine while their
+///   subtree is still open below this row; nothing once it has closed.
+/// - The direct parent's cell: the elbow — a vertical half-line coming down
+///   from the parent (plus another going down to a younger sibling if any)
+///   and a horizontal arm reaching the badge.
+/// - The badge cell: short verticals linking to older / younger siblings or
+///   to this node's own first child.
+class _TreeGutterPainter extends CustomPainter {
+  _TreeGutterPainter({
+    required this.depth,
+    required this.isFirstChild,
+    required this.isLastChild,
+    required this.hasChildren,
+    required this.ancestorIsLast,
+    required this.cellWidth,
+    required this.badgeRadius,
+    required this.color,
+  });
+
+  final int depth;
+  final bool isFirstChild;
+  final bool isLastChild;
+  final bool hasChildren;
+  final List<bool> ancestorIsLast;
+  final double cellWidth;
+  final double badgeRadius;
+  final Color color;
+
+  /// Whether the ancestor at level [i] still has descendants below this
+  /// row, i.e. its vertical spine should keep going through this row.
+  /// True unless this node is that ancestor's last descendant.
+  bool _ancestorOpen(int i) {
+    // This node is the ancestor's last descendant when every step from the
+    // ancestor's child down to this node is a "last child".
+    for (int k = i + 1; k <= depth - 1; k++) {
+      if (!ancestorIsLast[k]) return true;
+    }
+    return !isLastChild;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final h = size.height;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+
+    // Pass-through spines for ancestors above the direct parent.
+    for (int i = 0; i < depth - 1; i++) {
+      if (!_ancestorOpen(i)) continue;
+      final cx = (i + 0.5) * cellWidth;
+      canvas.drawLine(Offset(cx, 0), Offset(cx, h), paint);
+    }
+
+    final badgeCx = (depth + 0.5) * cellWidth;
+
+    // Elbow in the direct parent's cell.
+    if (depth > 0) {
+      final cx = (depth - 0.5) * cellWidth;
+      // Come down from the parent.
+      canvas.drawLine(Offset(cx, 0), Offset(cx, h / 2), paint);
+      // Continue down to a younger sibling, if any.
+      if (!isLastChild) {
+        canvas.drawLine(Offset(cx, h / 2), Offset(cx, h), paint);
+      }
+      // Horizontal arm reaching the badge.
+      canvas.drawLine(
+        Offset(cx, h / 2),
+        Offset(badgeCx - badgeRadius, h / 2),
+        paint,
+      );
+    }
+
+    // Badge cell: link up to an older sibling, down to a younger sibling
+    // or to this node's own first child.
+    if (!isFirstChild) {
+      canvas.drawLine(
+        Offset(badgeCx, 0),
+        Offset(badgeCx, h / 2 - badgeRadius),
+        paint,
+      );
+    }
+    if (hasChildren || !isLastChild) {
+      canvas.drawLine(
+        Offset(badgeCx, h / 2 + badgeRadius),
+        Offset(badgeCx, h),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TreeGutterPainter old) {
+    if (depth != old.depth ||
+        isFirstChild != old.isFirstChild ||
+        isLastChild != old.isLastChild ||
+        hasChildren != old.hasChildren ||
+        color != old.color ||
+        cellWidth != old.cellWidth ||
+        badgeRadius != old.badgeRadius) {
+      return true;
+    }
+    if (ancestorIsLast.length != old.ancestorIsLast.length) return true;
+    for (int i = 0; i < ancestorIsLast.length; i++) {
+      if (ancestorIsLast[i] != old.ancestorIsLast[i]) return true;
+    }
+    return false;
   }
 }

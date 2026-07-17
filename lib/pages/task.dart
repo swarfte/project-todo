@@ -175,84 +175,161 @@ class _TaskPageState extends State<TaskPage> {
     }
   }
 
-  /// Groups tasks into ordered chains by following `previousTaskId`.
+  /// Builds a task forest from `previousTaskId` links and flattens it
+  /// in pre-order, recording each node's depth and sibling position so
+  /// the timeline can draw indent guides and elbow connectors.
   ///
-  /// Each returned list is one chain in execution order (predecessor
-  /// first). Tasks whose predecessor is missing or whose chain forms a
-  /// cycle are treated as their own chain heads so the UI never breaks.
-  List<List<Task>> _groupChains(List<Task> tasks) {
+  /// A predecessor can have any number of successors, so the data is a
+  /// forest (each node has at most one parent). Tasks whose predecessor
+  /// is missing, external to this project, or part of a cycle become
+  /// their own roots so the UI never breaks.
+  List<FlatTaskNode> _buildTaskForest(List<Task> tasks) {
     final byId = {for (final t in tasks) t.id: t};
 
-    // Find every task that is referenced as someone's predecessor.
-    final referencedAsPrev = <String>{
-      for (final t in tasks)
-        if (t.previousTaskId != null) t.previousTaskId!,
-    };
+    // Map each parent id -> its direct successors.
+    final children = <String, List<Task>>{};
+    final roots = <Task>[];
 
-    // Chain heads: tasks with no predecessor, or whose predecessor is
-    // not in this project's task set.
-    final heads = <Task>[];
     for (final t in tasks) {
-      final hasValidPrev =
-          t.previousTaskId != null && byId.containsKey(t.previousTaskId);
-      if (!hasValidPrev) heads.add(t);
+      final prev = t.previousTaskId;
+      final hasValidPrev = prev != null && byId.containsKey(prev);
+      if (!hasValidPrev) {
+        roots.add(t);
+        continue;
+      }
+      // Guard against self-loops: a task pointing at itself would never
+      // be reached as a child of anything else, so treat it as a root.
+      if (prev == t.id) {
+        roots.add(t);
+        continue;
+      }
+      children.putIfAbsent(prev, () => []).add(t);
     }
 
-    final result = <List<Task>>[];
+    // Deterministic, urgency-aware ordering for siblings.
+    for (final list in children.values) {
+      list.sort(_compareSiblings);
+    }
+    roots.sort(_compareSiblings);
+
+    final nodes = <FlatTaskNode>[];
     final visited = <String>{};
 
-    for (final head in heads) {
-      final chain = <Task>[];
-      Task? current = head;
+    // depth 0 (root) has no parent; treated as both first and last child.
+    void walk(
+      Task task,
+      int depth,
+      bool isFirstChild,
+      bool isLastChild,
+      List<bool> ancestorIsLast,
+    ) {
+      if (visited.contains(task.id)) return; // cycle guard
+      visited.add(task.id);
 
-      while (current != null && !visited.contains(current.id)) {
-        visited.add(current.id);
-        chain.add(current);
+      final localChildren = children[task.id] ?? const [];
 
-        final nextId = _findNextOf(byId, current.id, referencedAsPrev);
+      nodes.add(
+        FlatTaskNode(
+          task: task,
+          depth: depth,
+          isFirstChild: isFirstChild,
+          isLastChild: isLastChild,
+          hasChildren: localChildren.isNotEmpty,
+          ancestorIsLast: List<bool>.unmodifiable(ancestorIsLast),
+        ),
+      );
 
-        current = nextId == null ? null : byId[nextId];
+      // Each descendant inherits this node's "last child" flag as the next
+      // level down in its ancestor stack, which the gutter uses to decide
+      // whether this node's spine keeps going past those rows.
+      final childAncestorIsLast = [...ancestorIsLast, isLastChild];
+      for (var i = 0; i < localChildren.length; i++) {
+        final child = localChildren[i];
+        walk(
+          child,
+          depth + 1,
+          i == 0,
+          i == localChildren.length - 1,
+          childAncestorIsLast,
+        );
       }
-
-      if (chain.isNotEmpty) result.add(chain);
     }
 
-    // Safety net: any task not yet placed (shouldn't normally happen
-    // unless the graph is degenerate) becomes its own chain.
+    // Each root is rendered in its own card, so within a card there is
+    // only one root — it is always both the first and last child for
+    // connector purposes. Root ordering only affects which card sorts
+    // first, not the connectors drawn inside it.
+    for (final root in roots) {
+      walk(root, 0, true, true, const []);
+    }
+
+    // Safety net: any task not reached (shouldn't normally happen unless
+    // the graph is degenerate) becomes its own root.
     for (final t in tasks) {
-      if (!visited.contains(t.id)) result.add([t]);
+      if (!visited.contains(t.id)) {
+        nodes.add(
+          FlatTaskNode(
+            task: t,
+            depth: 0,
+            isFirstChild: true,
+            isLastChild: true,
+            hasChildren: false,
+            ancestorIsLast: const [],
+          ),
+        );
+      }
     }
 
-    return result;
+    return nodes;
   }
 
-  /// Returns the id of the task whose predecessor is [prevId], i.e. the
-  /// "next" task after [prevId] in its chain. null if there is none.
-  String? _findNextOf(
-    Map<String, Task> byId,
-    String prevId,
-    Set<String> referencedAsPrev,
-  ) {
-    if (!referencedAsPrev.contains(prevId)) return null;
-    for (final entry in byId.entries) {
-      if (entry.value.previousTaskId == prevId) return entry.key;
+  int _compareSiblings(Task a, Task b) {
+    // Incomplete tasks before completed ones.
+    if (a.isCompleted != b.isCompleted) {
+      return a.isCompleted ? 1 : -1;
     }
-    return null;
+
+    // Earliest due date first (tasks with a due date beat those without).
+    if (a.dueDate != null && b.dueDate != null) {
+      return a.dueDate!.compareTo(b.dueDate!);
+    }
+    if (a.dueDate != null) return -1;
+    if (b.dueDate != null) return 1;
+
+    // Fall back to creation order.
+    return a.createdAt.compareTo(b.createdAt);
   }
 
-  /// Sorts chains as single units. Each chain's priority is driven by its
+  /// Splits a flattened forest into per-tree groups so each root becomes
+  /// its own card on screen. Groups are sorted by urgency.
+  List<List<FlatTaskNode>> _groupIntoTrees(List<FlatTaskNode> forest) {
+    final trees = <List<FlatTaskNode>>[];
+    var current = <FlatTaskNode>[];
+    for (final node in forest) {
+      if (node.depth == 0) {
+        if (current.isNotEmpty) trees.add(current);
+        current = [node];
+      } else {
+        current.add(node);
+      }
+    }
+    if (current.isNotEmpty) trees.add(current);
+    return trees;
+  }
+
+  /// Sorts trees as single units. Each tree's priority is driven by its
   /// most urgent incomplete task, so finishing that task naturally shifts
-  /// the chain to its next most urgent state.
+  /// the tree to its next most urgent state.
   ///
   /// Order (top to bottom):
-  /// 1. Chains with incomplete tasks that have a due date — earliest due
+  /// 1. Trees with incomplete tasks that have a due date — earliest due
   ///    date first (most urgent on top).
-  /// 2. Chains still incomplete but with no due dates — oldest chain
+  /// 2. Trees still incomplete but with no due dates — oldest tree
   ///    (by its earliest createdAt) first.
-  /// 3. Fully completed chains — newest completion first.
-  List<List<Task>> _sortChains(List<List<Task>> chains) {
-    final sorted = [...chains];
-    sorted.sort(_compareChains);
+  /// 3. Fully completed trees — newest completion first.
+  List<List<FlatTaskNode>> _sortTrees(List<List<FlatTaskNode>> trees) {
+    final sorted = [...trees];
+    sorted.sort(_compareTrees);
     return sorted;
   }
 
@@ -260,8 +337,9 @@ class _TaskPageState extends State<TaskPage> {
   /// 0 = has an incomplete task with a due date.
   /// 1 = incomplete but no due dates.
   /// 2 = fully completed.
-  ({int category, DateTime primary}) _chainSortKey(List<Task> chain) {
-    final incomplete = chain.where((t) => !t.isCompleted).toList();
+  ({int category, DateTime primary}) _treeSortKey(List<FlatTaskNode> tree) {
+    final tasks = tree.map((n) => n.task).toList();
+    final incomplete = tasks.where((t) => !t.isCompleted).toList();
 
     final dueDates =
         incomplete
@@ -275,7 +353,7 @@ class _TaskPageState extends State<TaskPage> {
     }
 
     if (incomplete.isNotEmpty) {
-      final oldest = chain
+      final oldest = tasks
           .map((t) => t.createdAt)
           .reduce((a, b) => a.isBefore(b) ? a : b);
       return (category: 1, primary: oldest);
@@ -283,20 +361,20 @@ class _TaskPageState extends State<TaskPage> {
 
     // Fully done: newest completion first.
     final completed =
-        chain
+        tasks
             .where((t) => t.completedAt != null)
             .map((t) => t.completedAt!)
             .toList()
           ..sort();
     final latest = completed.isNotEmpty
         ? completed.last
-        : chain.first.createdAt;
+        : tasks.first.createdAt;
     return (category: 2, primary: latest);
   }
 
-  int _compareChains(List<Task> a, List<Task> b) {
-    final ka = _chainSortKey(a);
-    final kb = _chainSortKey(b);
+  int _compareTrees(List<FlatTaskNode> a, List<FlatTaskNode> b) {
+    final ka = _treeSortKey(a);
+    final kb = _treeSortKey(b);
 
     if (ka.category != kb.category) {
       return ka.category.compareTo(kb.category);
@@ -333,13 +411,13 @@ class _TaskPageState extends State<TaskPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.project.name),
-        backgroundColor: Colors.purple[500],
+        backgroundColor: Colors.teal[600],
         foregroundColor: Colors.white, // set text color to white
       ),
       body: _buildBody(),
       floatingActionButton: FloatingActionButton(
         onPressed: _openCreateTaskDialog,
-        backgroundColor: Colors.purple[300],
+        backgroundColor: Colors.teal[300],
         foregroundColor: Colors.white,
         tooltip: 'create new task',
         child: Icon(Icons.add),
@@ -389,17 +467,17 @@ class _TaskPageState extends State<TaskPage> {
       );
     }
 
-    final chains = _sortChains(_groupChains(_tasks));
+    final trees = _sortTrees(_groupIntoTrees(_buildTaskForest(_tasks)));
 
     return RefreshIndicator(
       onRefresh: _loadTasks,
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-        itemCount: chains.length,
+        itemCount: trees.length,
         itemBuilder: (BuildContext context, int index) {
-          final chain = chains[index];
+          final tree = trees[index];
           return ChainTimeline(
-            chain: chain,
+            nodes: tree,
             formatDate: _formatDate,
             onToggleComplete: _toggleComplete,
             onEdit: _openEditTaskDialog,
