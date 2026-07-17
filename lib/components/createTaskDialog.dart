@@ -31,10 +31,39 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
   // new task is a starting point (no predecessor).
   Task? _selectedPreviousTask;
 
+  // Optional due date. null means the task has no deadline.
+  DateTime? _dueDate;
+
   @override
   void dispose() {
     _taskNameController.dispose();
     super.dispose();
+  }
+
+  // Opens a date picker so the user can choose an optional due date.
+  // Selecting the same date as the current value clears it (treats the
+  // tap as a toggle), letting the user opt out of a due date.
+  Future<void> _pickDueDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dueDate ?? now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 5),
+      helpText: 'Select due date (optional)',
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _dueDate = picked;
+    });
+  }
+
+  void _clearDueDate() {
+    setState(() {
+      _dueDate = null;
+    });
   }
 
   Future<void> _createTask() async {
@@ -61,6 +90,7 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
         taskName,
         widget.projectId,
         previousTaskId: _selectedPreviousTask?.id,
+        dueDate: _dueDate,
       );
 
       // The dialog may have been removed while waiting for the API.
@@ -157,6 +187,35 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
                 style: TextStyle(color: Colors.grey[600], fontSize: 13),
               ),
             ],
+
+            const SizedBox(height: 16),
+
+            // Optional due date selector.
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _dueDate == null
+                        ? 'No due date'
+                        : 'Due: ${_dueDate!.toLocal().toString().split(' ')[0]}',
+                    style: TextStyle(
+                      color: _dueDate == null ? Colors.grey[600] : null,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _isSending ? null : _pickDueDate,
+                  icon: const Icon(Icons.calendar_today, size: 18),
+                  label: Text(_dueDate == null ? 'Set' : 'Change'),
+                ),
+                if (_dueDate != null)
+                  IconButton(
+                    tooltip: 'Remove due date',
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: _isSending ? null : _clearDueDate,
+                  ),
+              ],
+            ),
 
             if (_errorMessage != null) ...[
               const SizedBox(height: 16),

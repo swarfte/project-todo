@@ -110,6 +110,7 @@ class APIService {
     String name,
     String projectId, {
     String? previousTaskId,
+    DateTime? dueDate,
   }) async {
     if (_pb == null) {
       await connectDB();
@@ -120,7 +121,7 @@ class APIService {
       'projectId': projectId,
       'userId': _authData!.record.id,
       'isCompleted': false,
-      'dueDate': null,
+      'dueDate': dueDate?.toIso8601String(),
       'previousTaskId': previousTaskId,
       'completedAt': null,
     };
@@ -173,9 +174,9 @@ class APIService {
       await connectDB();
     }
 
-    return await _pb!.collection('tasks').getFullList(
-          filter: 'projectId="$projectId"',
-        );
+    return await _pb!
+        .collection('tasks')
+        .getFullList(filter: 'projectId="$projectId"');
   }
 
   Future<bool> updateTask(Task task) async {
