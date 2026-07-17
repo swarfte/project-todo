@@ -256,6 +256,74 @@ class _TaskPageState extends State<TaskPage> {
     return null;
   }
 
+  /// Sorts chains as single units. Each chain's priority is driven by its
+  /// most urgent incomplete task, so finishing that task naturally shifts
+  /// the chain to its next most urgent state.
+  ///
+  /// Order (top to bottom):
+  /// 1. Chains with incomplete tasks that have a due date — earliest due
+  ///    date first (most urgent on top).
+  /// 2. Chains still incomplete but with no due dates — oldest chain
+  ///    (by its earliest createdAt) first.
+  /// 3. Fully completed chains — newest completion first.
+  List<List<Task>> _sortChains(List<List<Task>> chains) {
+    final sorted = [...chains];
+    sorted.sort(_compareChains);
+    return sorted;
+  }
+
+  /// Categories (ascending: smaller = higher priority = shown first):
+  /// 0 = has an incomplete task with a due date.
+  /// 1 = incomplete but no due dates.
+  /// 2 = fully completed.
+  ({int category, DateTime primary}) _chainSortKey(List<Task> chain) {
+    final incomplete = chain.where((t) => !t.isCompleted).toList();
+
+    final dueDates = incomplete
+        .where((t) => t.dueDate != null)
+        .map((t) => t.dueDate!)
+        .toList()
+      ..sort();
+
+    if (dueDates.isNotEmpty) {
+      return (category: 0, primary: dueDates.first);
+    }
+
+    if (incomplete.isNotEmpty) {
+      final oldest = chain
+          .map((t) => t.createdAt)
+          .reduce((a, b) => a.isBefore(b) ? a : b);
+      return (category: 1, primary: oldest);
+    }
+
+    // Fully done: newest completion first.
+    final completed = chain
+        .where((t) => t.completedAt != null)
+        .map((t) => t.completedAt!)
+        .toList()
+      ..sort();
+    final latest = completed.isNotEmpty
+        ? completed.last
+        : chain.first.createdAt;
+    return (category: 2, primary: latest);
+  }
+
+  int _compareChains(List<Task> a, List<Task> b) {
+    final ka = _chainSortKey(a);
+    final kb = _chainSortKey(b);
+
+    if (ka.category != kb.category) {
+      return ka.category.compareTo(kb.category);
+    }
+
+    // Categories 0 and 1 sort ascending (earliest first); category 2
+    // (completed) sorts descending so the newest completion wins.
+    if (ka.category == 2) {
+      return kb.primary.compareTo(ka.primary);
+    }
+    return ka.primary.compareTo(kb.primary);
+  }
+
   String _formatDate(DateTime date) {
     const monthNames = [
       'Jan',
@@ -335,7 +403,7 @@ class _TaskPageState extends State<TaskPage> {
       );
     }
 
-    final chains = _groupChains(_tasks);
+    final chains = _sortChains(_groupChains(_tasks));
 
     return RefreshIndicator(
       onRefresh: _loadTasks,
