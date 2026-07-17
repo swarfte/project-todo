@@ -143,19 +143,6 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
               onSubmitted: (_) => _save(),
             ),
             const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Completed'),
-              value: _isCompleted,
-              onChanged: _isSending
-                  ? null
-                  : (value) {
-                      setState(() {
-                        _isCompleted = value;
-                      });
-                    },
-            ),
-            const SizedBox(height: 8),
 
             // Optional due date selector.
             Row(
