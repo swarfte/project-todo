@@ -162,7 +162,7 @@ class _TaskPageState extends State<TaskPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.project.name),
-        backgroundColor: Colors.blue[600],
+        backgroundColor: Colors.purple[400],
         foregroundColor: Colors.white, // set text color to white
       ),
       body: _buildBody(),
