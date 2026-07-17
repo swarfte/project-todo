@@ -151,10 +151,7 @@ class _TaskPageState extends State<TaskPage> {
     if (!mounted) return;
 
     if (isSuccess) {
-      SuccessSnackBar.show(
-        messenger,
-        message: 'Task "${task.name}" deleted.',
-      );
+      SuccessSnackBar.show(messenger, message: 'Task "${task.name}" deleted.');
       _loadTasks();
     } else {
       SuccessSnackBar.show(
@@ -177,9 +174,7 @@ class _TaskPageState extends State<TaskPage> {
       updatedAt: task.updatedAt,
       dueDate: task.dueDate,
       previousTaskId: task.previousTaskId,
-      completedAt: newCompleted
-          ? (task.completedAt ?? DateTime.now())
-          : null,
+      completedAt: newCompleted ? (task.completedAt ?? DateTime.now()) : null,
     );
 
     final isSuccess = await _apiService.updateTask(updated);
@@ -284,13 +279,13 @@ class _TaskPageState extends State<TaskPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.project.name),
-        backgroundColor: Colors.purple[400],
+        backgroundColor: Colors.purple[500],
         foregroundColor: Colors.white, // set text color to white
       ),
       body: _buildBody(),
       floatingActionButton: FloatingActionButton(
         onPressed: _openCreateTaskDialog,
-        backgroundColor: Colors.green[300],
+        backgroundColor: Colors.purple[300],
         foregroundColor: Colors.white,
         tooltip: 'create new task',
         child: Icon(Icons.add),
@@ -480,8 +475,9 @@ class _TimelineRow extends StatelessWidget {
                 GestureDetector(
                   onTap: () => onToggleComplete(task),
                   child: Tooltip(
-                    message:
-                        task.isCompleted ? 'Mark as not done' : 'Mark as done',
+                    message: task.isCompleted
+                        ? 'Mark as not done'
+                        : 'Mark as done',
                     child: _PositionBadge(
                       position: position,
                       total: total,

@@ -181,7 +181,7 @@ class _HomePageState extends State<HomePage> {
       body: _buildBody(),
       floatingActionButton: FloatingActionButton(
         onPressed: _openCreateProjectDialog,
-        backgroundColor: Colors.green[300],
+        backgroundColor: Colors.blue[300],
         foregroundColor: Colors.white, //
         tooltip: 'create new project',
         child: Icon(Icons.add),
