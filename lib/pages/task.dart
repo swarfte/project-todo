@@ -215,11 +215,11 @@ class _TaskPageState extends State<TaskPage> {
     final nodes = <FlatTaskNode>[];
     final visited = <String>{};
 
-    // depth 0 (root) has no parent; treated as both first and last child.
+    // depth 0 (root) has no parent; treated as a last child so no parent
+    // elbow is drawn for it.
     void walk(
       Task task,
       int depth,
-      bool isFirstChild,
       bool isLastChild,
       List<bool> ancestorIsLast,
     ) {
@@ -232,7 +232,6 @@ class _TaskPageState extends State<TaskPage> {
         FlatTaskNode(
           task: task,
           depth: depth,
-          isFirstChild: isFirstChild,
           isLastChild: isLastChild,
           hasChildren: localChildren.isNotEmpty,
           ancestorIsLast: List<bool>.unmodifiable(ancestorIsLast),
@@ -245,22 +244,15 @@ class _TaskPageState extends State<TaskPage> {
       final childAncestorIsLast = [...ancestorIsLast, isLastChild];
       for (var i = 0; i < localChildren.length; i++) {
         final child = localChildren[i];
-        walk(
-          child,
-          depth + 1,
-          i == 0,
-          i == localChildren.length - 1,
-          childAncestorIsLast,
-        );
+        walk(child, depth + 1, i == localChildren.length - 1, childAncestorIsLast);
       }
     }
 
     // Each root is rendered in its own card, so within a card there is
-    // only one root — it is always both the first and last child for
-    // connector purposes. Root ordering only affects which card sorts
-    // first, not the connectors drawn inside it.
+    // only one root; it carries no parent connector. Root ordering only
+    // affects which card sorts first, not the connectors drawn inside it.
     for (final root in roots) {
-      walk(root, 0, true, true, const []);
+      walk(root, 0, true, const []);
     }
 
     // Safety net: any task not reached (shouldn't normally happen unless
@@ -271,7 +263,6 @@ class _TaskPageState extends State<TaskPage> {
           FlatTaskNode(
             task: t,
             depth: 0,
-            isFirstChild: true,
             isLastChild: true,
             hasChildren: false,
             ancestorIsLast: const [],

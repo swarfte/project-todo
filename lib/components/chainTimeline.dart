@@ -31,7 +31,6 @@ class FlatTaskNode {
   const FlatTaskNode({
     required this.task,
     required this.depth,
-    required this.isFirstChild,
     required this.isLastChild,
     required this.hasChildren,
     required this.ancestorIsLast,
@@ -42,13 +41,12 @@ class FlatTaskNode {
   /// 0 for a root, +1 for each level of nesting.
   final int depth;
 
-  /// Whether this is the first successor of its parent.
-  final bool isFirstChild;
-
-  /// Whether this is the last successor of its parent.
+  /// Whether this is the last successor of its parent. Determines whether
+  /// the parent elbow continues down to a younger sibling.
   final bool isLastChild;
 
-  /// Whether this node has any successors itself.
+  /// Whether this node has any successors itself. Drives the drop line
+  /// below the badge that connects to its first child.
   final bool hasChildren;
 
   /// For each ancestor level (0..depth-1), whether that ancestor was the
@@ -149,7 +147,6 @@ class TreeRow extends StatelessWidget {
                   child: CustomPaint(
                     painter: _TreeGutterPainter(
                       depth: node.depth,
-                      isFirstChild: node.isFirstChild,
                       isLastChild: node.isLastChild,
                       hasChildren: node.hasChildren,
                       ancestorIsLast: node.ancestorIsLast,
@@ -297,20 +294,29 @@ class _NodeBadge extends StatelessWidget {
   }
 }
 
-/// Draws the indent guides and elbow connectors for one row.
+/// Draws the indent guides and elbow connectors for one row, exactly like
+/// the `tree` command's `├──` / `└──` / `│` glyphs.
 ///
-/// Layout (per ancestor level = one cell of [cellWidth]):
-/// - Ancestors above the direct parent: a full vertical spine while their
-///   subtree is still open below this row; nothing once it has closed.
-/// - The direct parent's cell: the elbow — a vertical half-line coming down
-///   from the parent (plus another going down to a younger sibling if any)
-///   and a horizontal arm reaching the badge.
-/// - The badge cell: short verticals linking to older / younger siblings or
-///   to this node's own first child.
+/// The gutter is a row of equal-width cells, one per depth level. The badge
+/// sits in the last cell (column [depth]); columns 0..depth-1 carry the
+/// connectors. For column [i]:
+///
+/// - If [i] < [depth] - 1 (an ancestor above the direct parent): draw a
+///   full vertical spine only while that ancestor's subtree is still open
+///   below this row; otherwise leave it blank. (This is the `│` glyph.)
+/// - If [i] == [depth] - 1 (the direct parent's cell): draw the elbow — a
+///   half-line dropping from the parent, a horizontal arm to the badge, and
+///   a continuation down to a younger sibling when one exists. (This is the
+///   `├──` / `└──` glyph.)
+///
+/// The badge's own column is special: nothing ever sits above the badge
+/// (it ties into its parent through the elbow's horizontal arm, not from
+/// above), and a line drops below it only when this node has a first child
+/// to connect to. Siblings never run through the badge column — they run
+/// through the parent's spine — so [isLastChild] does not affect it.
 class _TreeGutterPainter extends CustomPainter {
   _TreeGutterPainter({
     required this.depth,
-    required this.isFirstChild,
     required this.isLastChild,
     required this.hasChildren,
     required this.ancestorIsLast,
@@ -320,7 +326,6 @@ class _TreeGutterPainter extends CustomPainter {
   });
 
   final int depth;
-  final bool isFirstChild;
   final bool isLastChild;
   final bool hasChildren;
   final List<bool> ancestorIsLast;
@@ -328,12 +333,14 @@ class _TreeGutterPainter extends CustomPainter {
   final double badgeRadius;
   final Color color;
 
-  /// Whether the ancestor at level [i] still has descendants below this
-  /// row, i.e. its vertical spine should keep going through this row.
-  /// True unless this node is that ancestor's last descendant.
+  /// Whether the ancestor at level [i] still has rows below this one inside
+  /// its subtree, meaning its vertical spine must pass through this row.
+  ///
+  /// The current node is that ancestor's *last* descendant iff every node
+  /// on the path from level `i + 1` down to this node is a last child. If
+  /// any of them has a younger sibling, that sibling's subtree renders
+  /// below and the spine stays open.
   bool _ancestorOpen(int i) {
-    // This node is the ancestor's last descendant when every step from the
-    // ancestor's child down to this node is a "last child".
     for (int k = i + 1; k <= depth - 1; k++) {
       if (!ancestorIsLast[k]) return true;
     }
@@ -343,49 +350,42 @@ class _TreeGutterPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final h = size.height;
+    final midY = h / 2;
     final paint = Paint()
       ..color = color
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
 
-    // Pass-through spines for ancestors above the direct parent.
-    for (int i = 0; i < depth - 1; i++) {
-      if (!_ancestorOpen(i)) continue;
-      final cx = (i + 0.5) * cellWidth;
-      canvas.drawLine(Offset(cx, 0), Offset(cx, h), paint);
-    }
-
     final badgeCx = (depth + 0.5) * cellWidth;
 
-    // Elbow in the direct parent's cell.
-    if (depth > 0) {
-      final cx = (depth - 0.5) * cellWidth;
-      // Come down from the parent.
-      canvas.drawLine(Offset(cx, 0), Offset(cx, h / 2), paint);
-      // Continue down to a younger sibling, if any.
-      if (!isLastChild) {
-        canvas.drawLine(Offset(cx, h / 2), Offset(cx, h), paint);
+    // One pass over every connector column 0..depth-1.
+    for (int i = 0; i < depth; i++) {
+      final cx = (i + 0.5) * cellWidth;
+
+      if (i == depth - 1) {
+        // Direct parent's cell — the elbow.
+        canvas.drawLine(Offset(cx, 0), Offset(cx, midY), paint);
+        if (!isLastChild) {
+          canvas.drawLine(Offset(cx, midY), Offset(cx, h), paint);
+        }
+        canvas.drawLine(
+          Offset(cx, midY),
+          Offset(badgeCx - badgeRadius, midY),
+          paint,
+        );
+      } else {
+        // Pass-through ancestor cell — full spine only while open.
+        if (_ancestorOpen(i)) {
+          canvas.drawLine(Offset(cx, 0), Offset(cx, h), paint);
+        }
       }
-      // Horizontal arm reaching the badge.
-      canvas.drawLine(
-        Offset(cx, h / 2),
-        Offset(badgeCx - badgeRadius, h / 2),
-        paint,
-      );
     }
 
-    // Badge cell: link up to an older sibling, down to a younger sibling
-    // or to this node's own first child.
-    if (!isFirstChild) {
+    // Badge cell: a single drop to this node's first child, if any.
+    // Never draw above the badge; siblings use the parent's spine above.
+    if (hasChildren) {
       canvas.drawLine(
-        Offset(badgeCx, 0),
-        Offset(badgeCx, h / 2 - badgeRadius),
-        paint,
-      );
-    }
-    if (hasChildren || !isLastChild) {
-      canvas.drawLine(
-        Offset(badgeCx, h / 2 + badgeRadius),
+        Offset(badgeCx, midY + badgeRadius),
         Offset(badgeCx, h),
         paint,
       );
@@ -395,7 +395,6 @@ class _TreeGutterPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _TreeGutterPainter old) {
     if (depth != old.depth ||
-        isFirstChild != old.isFirstChild ||
         isLastChild != old.isLastChild ||
         hasChildren != old.hasChildren ||
         color != old.color ||
