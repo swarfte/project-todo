@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:project_todo/adaptor.dart';
 import 'package:project_todo/api.dart';
 import 'package:project_todo/components/createTaskDialog.dart';
+import 'package:project_todo/components/editTaskDialog.dart';
+import 'package:project_todo/components/successSnackBar.dart';
 import 'package:project_todo/models.dart';
 
 /// Returns the color for a task's due date based on its urgency:
@@ -93,6 +95,104 @@ class _TaskPageState extends State<TaskPage> {
     // tasks show up immediately.
     if (mounted) {
       _loadTasks();
+    }
+  }
+
+  Future<void> _openEditTaskDialog(Task task) async {
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return EditTaskDialog(task: task);
+      },
+    );
+
+    // Refresh the list once the dialog is closed so edited
+    // tasks show up immediately.
+    if (mounted) {
+      _loadTasks();
+    }
+  }
+
+  Future<void> _confirmDeleteTask(Task task) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Task'),
+          content: Text(
+            'Are you sure you want to delete "${task.name}"? '
+            'This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[400],
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    final isSuccess = await _apiService.deleteTask(task.id);
+
+    if (!mounted) return;
+
+    if (isSuccess) {
+      SuccessSnackBar.show(
+        messenger,
+        message: 'Task "${task.name}" deleted.',
+      );
+      _loadTasks();
+    } else {
+      SuccessSnackBar.show(
+        messenger,
+        message: 'Failed to delete "${task.name}".',
+      );
+    }
+  }
+
+  /// Toggles a task's completion status. A quick way to tick a task off
+  /// without opening the edit dialog.
+  Future<void> _toggleComplete(Task task) async {
+    final newCompleted = !task.isCompleted;
+    final updated = Task(
+      id: task.id,
+      name: task.name,
+      projectId: task.projectId,
+      isCompleted: newCompleted,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+      dueDate: task.dueDate,
+      previousTaskId: task.previousTaskId,
+      completedAt: newCompleted
+          ? (task.completedAt ?? DateTime.now())
+          : null,
+    );
+
+    final isSuccess = await _apiService.updateTask(updated);
+
+    if (!mounted) return;
+
+    if (isSuccess) {
+      _loadTasks();
+    } else {
+      SuccessSnackBar.show(
+        ScaffoldMessenger.of(context),
+        message: 'Failed to update "${task.name}".',
+      );
     }
   }
 
@@ -249,7 +349,13 @@ class _TaskPageState extends State<TaskPage> {
         itemCount: chains.length,
         itemBuilder: (BuildContext context, int index) {
           final chain = chains[index];
-          return _ChainTimeline(chain: chain, formatDate: _formatDate);
+          return _ChainTimeline(
+            chain: chain,
+            formatDate: _formatDate,
+            onToggleComplete: _toggleComplete,
+            onEdit: _openEditTaskDialog,
+            onDelete: _confirmDeleteTask,
+          );
         },
       ),
     );
@@ -259,10 +365,19 @@ class _TaskPageState extends State<TaskPage> {
 /// Renders one task chain as a vertical timeline: a colored connector line
 /// with a numbered position badge for each task (1/3, 2/3, ...).
 class _ChainTimeline extends StatelessWidget {
-  const _ChainTimeline({required this.chain, required this.formatDate});
+  const _ChainTimeline({
+    required this.chain,
+    required this.formatDate,
+    required this.onToggleComplete,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final List<Task> chain;
   final String Function(DateTime) formatDate;
+  final void Function(Task task) onToggleComplete;
+  final void Function(Task task) onEdit;
+  final void Function(Task task) onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -287,6 +402,9 @@ class _ChainTimeline extends StatelessWidget {
                     isFirst: i == 0,
                     isLast: i == total - 1,
                     formatDate: formatDate,
+                    onToggleComplete: onToggleComplete,
+                    onEdit: onEdit,
+                    onDelete: onDelete,
                   ),
               ],
             ),
@@ -305,6 +423,9 @@ class _TimelineRow extends StatelessWidget {
     required this.isFirst,
     required this.isLast,
     required this.formatDate,
+    required this.onToggleComplete,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   final Task task;
@@ -313,6 +434,9 @@ class _TimelineRow extends StatelessWidget {
   final bool isFirst;
   final bool isLast;
   final String Function(DateTime) formatDate;
+  final void Function(Task task) onToggleComplete;
+  final void Function(Task task) onEdit;
+  final void Function(Task task) onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -350,11 +474,20 @@ class _TimelineRow extends StatelessWidget {
                     ),
                   ],
                 ),
-                // Position badge centered over the gap.
-                _PositionBadge(
-                  position: position,
-                  total: total,
-                  isCompleted: task.isCompleted,
+                // Position badge centered over the gap. Tapping it
+                // toggles completion for a quick "tick" without opening
+                // the edit dialog.
+                GestureDetector(
+                  onTap: () => onToggleComplete(task),
+                  child: Tooltip(
+                    message:
+                        task.isCompleted ? 'Mark as not done' : 'Mark as done',
+                    child: _PositionBadge(
+                      position: position,
+                      total: total,
+                      isCompleted: task.isCompleted,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -398,6 +531,43 @@ class _TimelineRow extends StatelessWidget {
                       label: const Text('Done'),
                       backgroundColor: Colors.green[100],
                     ),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    tooltip: 'Task actions',
+                    onSelected: (String value) {
+                      if (value == 'edit') {
+                        onEdit(task);
+                      } else if (value == 'delete') {
+                        onDelete(task);
+                      }
+                    },
+                    itemBuilder: (BuildContext context) => [
+                      const PopupMenuItem<String>(
+                        value: 'edit',
+                        child: ListTile(
+                          leading: Icon(Icons.edit_outlined),
+                          title: Text('Edit'),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'delete',
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.delete_outline,
+                            color: Colors.red[400],
+                          ),
+                          title: Text(
+                            'Delete',
+                            style: TextStyle(color: Colors.red[400]),
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
