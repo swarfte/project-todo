@@ -4,6 +4,28 @@ import 'package:project_todo/api.dart';
 import 'package:project_todo/components/createTaskDialog.dart';
 import 'package:project_todo/models.dart';
 
+/// Returns the color for a task's due date based on its urgency:
+/// - Red: overdue or due today.
+/// - Orange: due within the next 72 hours (3 days).
+/// - Green: due further out.
+Color dueDateColor(DateTime dueDate) {
+  final now = DateTime.now();
+  final startOfTomorrow = DateTime(now.year, now.month, now.day + 1);
+
+  // Due today or in the past.
+  if (dueDate.isBefore(startOfTomorrow)) {
+    return Colors.red;
+  }
+
+  // Due within the next 72 hours.
+  if (dueDate.difference(now) <= const Duration(hours: 72)) {
+    return Colors.orange;
+  }
+
+  // Plenty of time left.
+  return Colors.green;
+}
+
 class TaskPage extends StatefulWidget {
   const TaskPage({super.key, required this.project});
 
@@ -363,7 +385,9 @@ class _TimelineRow extends StatelessWidget {
                           subtitle,
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.grey[600],
+                            color: task.dueDate != null && !task.isCompleted
+                                ? dueDateColor(task.dueDate!)
+                                : Colors.grey[600],
                           ),
                         ),
                       ],
