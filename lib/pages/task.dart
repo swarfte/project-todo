@@ -195,6 +195,37 @@ class _TaskPageState extends State<TaskPage> {
     }
   }
 
+  /// Toggles a task's folded state and persists it. Folding hides the
+  /// task's descendants from view; unfolding shows them again. The
+  /// preference is saved per-task so it survives reloads.
+  Future<void> _toggleFold(Task task) async {
+    final updated = Task(
+      id: task.id,
+      name: task.name,
+      projectId: task.projectId,
+      isCompleted: task.isCompleted,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+      dueDate: task.dueDate,
+      previousTaskId: task.previousTaskId,
+      completedAt: task.completedAt,
+      isFolded: !task.isFolded,
+    );
+
+    final isSuccess = await _apiService.updateTask(updated);
+
+    if (!mounted) return;
+
+    if (isSuccess) {
+      _loadTasks();
+    } else {
+      SuccessSnackBar.show(
+        ScaffoldMessenger.of(context),
+        message: 'Failed to update "${task.name}".',
+      );
+    }
+  }
+
   /// Builds a task forest from `previousTaskId` links and flattens it
   /// in pre-order, recording each node's depth and sibling position so
   /// the timeline can draw indent guides and elbow connectors.
@@ -255,8 +286,14 @@ class _TaskPageState extends State<TaskPage> {
           isLastChild: isLastChild,
           hasChildren: localChildren.isNotEmpty,
           ancestorIsLast: List<bool>.unmodifiable(ancestorIsLast),
+          isFolded: task.isFolded,
         ),
       );
+
+      // A folded task hides its subtree: don't walk the children. The task
+      // is still marked visited so the safety net below won't re-add it as
+      // a stray root; the children remain in `tasks` for the next unfold.
+      if (task.isFolded) return;
 
       // Each descendant inherits this node's "last child" flag as the next
       // level down in its ancestor stack, which the gutter uses to decide
@@ -281,7 +318,9 @@ class _TaskPageState extends State<TaskPage> {
     }
 
     // Safety net: any task not reached (shouldn't normally happen unless
-    // the graph is degenerate) becomes its own root.
+    // the graph is degenerate) becomes its own root. Note: tasks hidden
+    // under a folded ancestor are intentionally NOT shown here, since the
+    // fold is an explicit user preference to hide them.
     for (final t in tasks) {
       if (!visited.contains(t.id)) {
         nodes.add(
@@ -291,6 +330,7 @@ class _TaskPageState extends State<TaskPage> {
             isLastChild: true,
             hasChildren: false,
             ancestorIsLast: const [],
+            isFolded: t.isFolded,
           ),
         );
       }
@@ -499,6 +539,7 @@ class _TaskPageState extends State<TaskPage> {
             onEdit: _openEditTaskDialog,
             onDelete: _confirmDeleteTask,
             onAddSubtask: _openCreateSubtaskDialog,
+            onToggleFold: _toggleFold,
           );
         },
       ),

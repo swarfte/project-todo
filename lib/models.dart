@@ -28,7 +28,7 @@ class Task {
   DateTime updatedAt;
   String? previousTaskId;
   DateTime? completedAt;
-  bool isFolded; // New property to track if the task is folded
+  bool isFolded = false; // New property to track if the task is folded
 
   Task({
     required this.id,
@@ -40,7 +40,7 @@ class Task {
     this.dueDate,
     this.previousTaskId,
     this.completedAt,
-    required this.isFolded, // Initialize the isFolded property
+    this.isFolded = false, // Initialize the isFolded property
   });
 }
 

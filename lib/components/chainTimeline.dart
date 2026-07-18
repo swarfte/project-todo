@@ -34,6 +34,7 @@ class FlatTaskNode {
     required this.isLastChild,
     required this.hasChildren,
     required this.ancestorIsLast,
+    required this.isFolded,
   });
 
   final Task task;
@@ -53,6 +54,11 @@ class FlatTaskNode {
   /// last child of its own parent. Used to decide whether each ancestor's
   /// vertical spine should keep going past this row.
   final List<bool> ancestorIsLast;
+
+  /// Whether this node's children are currently hidden. When true the
+  /// drop-line below the badge is not drawn (children aren't rendered) and
+  /// the chevron points right instead of down.
+  final bool isFolded;
 }
 
 /// Renders one task tree as an indented timeline. A predecessor can have
@@ -67,6 +73,7 @@ class ChainTimeline extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onAddSubtask,
+    required this.onToggleFold,
   });
 
   final List<FlatTaskNode> nodes;
@@ -75,6 +82,7 @@ class ChainTimeline extends StatelessWidget {
   final void Function(Task task) onEdit;
   final void Function(Task task) onDelete;
   final void Function(Task task) onAddSubtask;
+  final void Function(Task task) onToggleFold;
 
   @override
   Widget build(BuildContext context) {
@@ -96,6 +104,7 @@ class ChainTimeline extends StatelessWidget {
                   onEdit: onEdit,
                   onDelete: onDelete,
                   onAddSubtask: onAddSubtask,
+                  onToggleFold: onToggleFold,
                 ),
             ],
           ),
@@ -116,6 +125,7 @@ class TreeRow extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onAddSubtask,
+    required this.onToggleFold,
   });
 
   final FlatTaskNode node;
@@ -124,6 +134,7 @@ class TreeRow extends StatelessWidget {
   final void Function(Task task) onEdit;
   final void Function(Task task) onDelete;
   final void Function(Task task) onAddSubtask;
+  final void Function(Task task) onToggleFold;
 
   static const double cellWidth = 30;
   static const double badgeSize = 26;
@@ -166,6 +177,7 @@ class TreeRow extends StatelessWidget {
                       depth: node.depth,
                       isLastChild: node.isLastChild,
                       hasChildren: node.hasChildren,
+                      isFolded: node.isFolded,
                       ancestorIsLast: node.ancestorIsLast,
                       cellWidth: cellWidth,
                       badgeRadius: badgeRadius,
@@ -226,6 +238,22 @@ class TreeRow extends StatelessWidget {
                       ],
                     ),
                   ),
+
+                  // Fold/unfold shortcut. Only tasks that have children are
+                  // foldable; a leaf has nothing to hide, so it shows no
+                  // chevron to avoid a dead control.
+                  if (node.hasChildren)
+                    IconButton(
+                      tooltip: node.isFolded ? 'Unfold' : 'Fold',
+                      icon: Icon(
+                        node.isFolded
+                            ? Icons.chevron_right
+                            : Icons.expand_more,
+                      ),
+                      iconSize: 22,
+                      color: Colors.blue[600],
+                      onPressed: () => onToggleFold(task),
+                    ),
 
                   // Quick shortcut to add a subtask that comes after this
                   // task, without having to pick the predecessor manually.
@@ -338,6 +366,7 @@ class _TreeGutterPainter extends CustomPainter {
     required this.depth,
     required this.isLastChild,
     required this.hasChildren,
+    required this.isFolded,
     required this.ancestorIsLast,
     required this.cellWidth,
     required this.badgeRadius,
@@ -347,6 +376,7 @@ class _TreeGutterPainter extends CustomPainter {
   final int depth;
   final bool isLastChild;
   final bool hasChildren;
+  final bool isFolded;
   final List<bool> ancestorIsLast;
   final double cellWidth;
   final double badgeRadius;
@@ -402,7 +432,9 @@ class _TreeGutterPainter extends CustomPainter {
 
     // Badge cell: a single drop to this node's first child, if any.
     // Never draw above the badge; siblings use the parent's spine above.
-    if (hasChildren) {
+    // When folded, the children aren't rendered, so the drop line would
+    // dangle into nothing — suppress it.
+    if (hasChildren && !isFolded) {
       canvas.drawLine(
         Offset(badgeCx, midY + badgeRadius),
         Offset(badgeCx, h),
@@ -416,6 +448,7 @@ class _TreeGutterPainter extends CustomPainter {
     if (depth != old.depth ||
         isLastChild != old.isLastChild ||
         hasChildren != old.hasChildren ||
+        isFolded != old.isFolded ||
         color != old.color ||
         cellWidth != old.cellWidth ||
         badgeRadius != old.badgeRadius) {
