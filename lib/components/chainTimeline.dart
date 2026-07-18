@@ -66,6 +66,7 @@ class ChainTimeline extends StatelessWidget {
     required this.onToggleComplete,
     required this.onEdit,
     required this.onDelete,
+    required this.onAddSubtask,
   });
 
   final List<FlatTaskNode> nodes;
@@ -73,6 +74,7 @@ class ChainTimeline extends StatelessWidget {
   final void Function(Task task) onToggleComplete;
   final void Function(Task task) onEdit;
   final void Function(Task task) onDelete;
+  final void Function(Task task) onAddSubtask;
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +95,7 @@ class ChainTimeline extends StatelessWidget {
                   onToggleComplete: onToggleComplete,
                   onEdit: onEdit,
                   onDelete: onDelete,
+                  onAddSubtask: onAddSubtask,
                 ),
             ],
           ),
@@ -112,6 +115,7 @@ class TreeRow extends StatelessWidget {
     required this.onToggleComplete,
     required this.onEdit,
     required this.onDelete,
+    required this.onAddSubtask,
   });
 
   final FlatTaskNode node;
@@ -119,6 +123,7 @@ class TreeRow extends StatelessWidget {
   final void Function(Task task) onToggleComplete;
   final void Function(Task task) onEdit;
   final void Function(Task task) onDelete;
+  final void Function(Task task) onAddSubtask;
 
   static const double cellWidth = 30;
   static const double badgeSize = 26;
@@ -217,6 +222,16 @@ class TreeRow extends StatelessWidget {
                       label: const Text('Done'),
                       backgroundColor: Colors.green[100],
                     ),
+
+                  // Quick shortcut to add a subtask that comes after this
+                  // task, without having to pick the predecessor manually.
+                  IconButton(
+                    tooltip: 'Add subtask',
+                    icon: const Icon(Icons.add_task),
+                    iconSize: 22,
+                    color: Colors.teal[600],
+                    onPressed: () => onAddSubtask(task),
+                  ),
 
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert),

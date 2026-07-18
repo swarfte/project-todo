@@ -8,13 +8,20 @@ class CreateTaskDialog extends StatefulWidget {
   const CreateTaskDialog({
     super.key,
     required this.projectId,
-    required this.existingTasks,
+    this.previousTask,
+    this.existingTasks = const [],
   });
 
   final String projectId;
 
+  /// When set, the dialog creates a subtask that comes after this task and
+  /// the "previous task" selector is hidden — the predecessor is fixed by
+  /// the caller (e.g. the per-task "add subtask" shortcut).
+  final Task? previousTask;
+
   // Tasks already belonging to this project. Used to populate the
   // "previous task" selector so the dialog doesn't need to refetch.
+  // Ignored when [previousTask] is set.
   final List<Task> existingTasks;
 
   @override
@@ -28,8 +35,9 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
   bool _isSending = false;
 
   // The task that comes immediately before the new one. null means the
-  // new task is a starting point (no predecessor).
-  Task? _selectedPreviousTask;
+  // new task is a starting point (no predecessor). Pre-seeded from
+  // widget.previousTask when the dialog is opened as a subtask creator.
+  late Task? _selectedPreviousTask = widget.previousTask;
 
   // Optional due date. null means the task has no deadline.
   DateTime? _dueDate;
@@ -125,11 +133,15 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // The predecessor is fixed when the dialog is opened as a subtask
+    // creator; only show the selector when it is free to choose.
+    final hasFixedPrevious = widget.previousTask != null;
     // When there are no existing tasks yet, there is nothing to select.
-    final canSelectPrevious = widget.existingTasks.isNotEmpty;
+    final canSelectPrevious =
+        !hasFixedPrevious && widget.existingTasks.isNotEmpty;
 
     return AlertDialog(
-      title: const Text('Create New Task'),
+      title: Text(hasFixedPrevious ? 'Create Subtask' : 'Create New Task'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -143,8 +155,14 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
             ),
             const SizedBox(height: 16),
 
-            // Previous task selector.
-            if (canSelectPrevious) ...[
+            // Subtask mode: predecessor is fixed, just show the context.
+            if (hasFixedPrevious) ...[
+              Text(
+                'This task will come after "${_selectedPreviousTask!.name}".',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+            ] else if (canSelectPrevious) ...[
+              // Previous task selector.
               DropdownButtonFormField<Task?>(
                 initialValue: _selectedPreviousTask,
                 decoration: const InputDecoration(

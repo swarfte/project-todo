@@ -82,6 +82,25 @@ class _TaskPageState extends State<TaskPage> {
     }
   }
 
+  /// Opens the create dialog with the predecessor fixed to [parent], so the
+  /// user can add a subtask directly from a task row without picking the
+  /// previous task manually.
+  Future<void> _openCreateSubtaskDialog(Task parent) async {
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return CreateTaskDialog(
+          projectId: widget.project.id,
+          previousTask: parent,
+        );
+      },
+    );
+
+    if (mounted) {
+      _loadTasks();
+    }
+  }
+
   Future<void> _openEditTaskDialog(Task task) async {
     await showDialog<void>(
       context: context,
@@ -473,6 +492,7 @@ class _TaskPageState extends State<TaskPage> {
             onToggleComplete: _toggleComplete,
             onEdit: _openEditTaskDialog,
             onDelete: _confirmDeleteTask,
+            onAddSubtask: _openCreateSubtaskDialog,
           );
         },
       ),
