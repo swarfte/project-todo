@@ -296,13 +296,19 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ],
               ),
-              onTap: () {
-                Navigator.of(context).push(
+              onTap: () async {
+                await Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (BuildContext context) =>
                         TaskPage(project: project),
                   ),
                 );
+
+                // Refresh counts/status after returning from the task page,
+                // since tasks may have been created or completed there.
+                if (mounted) {
+                  _loadProjects();
+                }
               },
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
