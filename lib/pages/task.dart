@@ -6,6 +6,7 @@ import 'package:project_todo/components/editTaskDialog.dart';
 import 'package:project_todo/components/successSnackBar.dart';
 import 'package:project_todo/models.dart';
 import 'package:project_todo/components/chainTimeline.dart';
+import 'package:project_todo/pages/step.dart';
 
 /// Returns the color for a task's due date based on its urgency:
 /// - Red: overdue or due today.
@@ -94,6 +95,21 @@ class _TaskPageState extends State<TaskPage> {
           previousTask: parent,
         );
       },
+    );
+
+    if (mounted) {
+      _loadTasks();
+    }
+  }
+
+  /// Opens the task's step page, where the user can manage the ordered
+  /// list of steps that make up this task. Refreshes the task list on
+  /// return, since step changes can affect the task's apparent state.
+  Future<void> _openStepPage(Task task) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (BuildContext context) => StepPage(task: task),
+      ),
     );
 
     if (mounted) {
@@ -263,6 +279,24 @@ class _TaskPageState extends State<TaskPage> {
     }
     roots.sort(_compareSiblings);
 
+    // Compute the set of task ids that are hidden because some ancestor is
+    // folded. The folded ancestors themselves are still shown; only their
+    // descendants are suppressed. This set is also used by the safety net
+    // below so those descendants aren't promoted to independent roots.
+    final hidden = <String>{};
+    void markDescendants(String parentId) {
+      for (final child in children[parentId] ?? const <Task>[]) {
+        // Guard against cycles: stop if we've already queued this id.
+        if (!hidden.add(child.id)) continue;
+        markDescendants(child.id);
+      }
+    }
+    for (final t in tasks) {
+      if (t.isFolded) {
+        markDescendants(t.id);
+      }
+    }
+
     final nodes = <FlatTaskNode>[];
     final visited = <String>{};
 
@@ -290,9 +324,9 @@ class _TaskPageState extends State<TaskPage> {
         ),
       );
 
-      // A folded task hides its subtree: don't walk the children. The task
-      // is still marked visited so the safety net below won't re-add it as
-      // a stray root; the children remain in `tasks` for the next unfold.
+      // A folded task hides its descendants. The descendants are also in
+      // `hidden`, so the safety net below won't surface them either. They
+      // stay in `tasks` and reappear as soon as the task is unfolded.
       if (task.isFolded) return;
 
       // Each descendant inherits this node's "last child" flag as the next
@@ -318,22 +352,23 @@ class _TaskPageState extends State<TaskPage> {
     }
 
     // Safety net: any task not reached (shouldn't normally happen unless
-    // the graph is degenerate) becomes its own root. Note: tasks hidden
-    // under a folded ancestor are intentionally NOT shown here, since the
-    // fold is an explicit user preference to hide them.
+    // the graph is degenerate) becomes its own root. Tasks hidden under a
+    // folded ancestor are skipped — they were intentionally hidden by the
+    // user and must not be promoted to independent roots.
     for (final t in tasks) {
-      if (!visited.contains(t.id)) {
-        nodes.add(
-          FlatTaskNode(
-            task: t,
-            depth: 0,
-            isLastChild: true,
-            hasChildren: false,
-            ancestorIsLast: const [],
-            isFolded: t.isFolded,
-          ),
-        );
-      }
+      if (visited.contains(t.id)) continue;
+      if (hidden.contains(t.id)) continue;
+
+      nodes.add(
+        FlatTaskNode(
+          task: t,
+          depth: 0,
+          isLastChild: true,
+          hasChildren: false,
+          ancestorIsLast: const [],
+          isFolded: t.isFolded,
+        ),
+      );
     }
 
     return nodes;
@@ -540,6 +575,7 @@ class _TaskPageState extends State<TaskPage> {
             onDelete: _confirmDeleteTask,
             onAddSubtask: _openCreateSubtaskDialog,
             onToggleFold: _toggleFold,
+            onOpen: _openStepPage,
           );
         },
       ),

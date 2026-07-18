@@ -74,6 +74,7 @@ class ChainTimeline extends StatelessWidget {
     required this.onDelete,
     required this.onAddSubtask,
     required this.onToggleFold,
+    required this.onOpen,
   });
 
   final List<FlatTaskNode> nodes;
@@ -83,6 +84,10 @@ class ChainTimeline extends StatelessWidget {
   final void Function(Task task) onDelete;
   final void Function(Task task) onAddSubtask;
   final void Function(Task task) onToggleFold;
+
+  /// Opens the task (e.g. navigates into its step page). Triggered by
+  /// tapping the task title.
+  final void Function(Task task) onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +110,7 @@ class ChainTimeline extends StatelessWidget {
                   onDelete: onDelete,
                   onAddSubtask: onAddSubtask,
                   onToggleFold: onToggleFold,
+                  onOpen: onOpen,
                 ),
             ],
           ),
@@ -126,6 +132,7 @@ class TreeRow extends StatelessWidget {
     required this.onDelete,
     required this.onAddSubtask,
     required this.onToggleFold,
+    required this.onOpen,
   });
 
   final FlatTaskNode node;
@@ -135,6 +142,7 @@ class TreeRow extends StatelessWidget {
   final void Function(Task task) onDelete;
   final void Function(Task task) onAddSubtask;
   final void Function(Task task) onToggleFold;
+  final void Function(Task task) onOpen;
 
   static const double cellWidth = 30;
   static const double badgeSize = 26;
@@ -207,35 +215,40 @@ class TreeRow extends StatelessWidget {
 
           const SizedBox(width: 4),
 
-          // Task content.
+          // Task content + trailing actions.
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
                 children: [
+                  // Tapping the title opens the task (e.g. its step page).
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          task.name,
-                          style: TextStyle(
-                            fontSize: 16,
-                            decoration: task.isCompleted
-                                ? TextDecoration.lineThrough
-                                : null,
-                            color: task.isCompleted ? Colors.grey : null,
+                    child: InkWell(
+                      onTap: () => onOpen(task),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            task.name,
+                            style: TextStyle(
+                              fontSize: 16,
+                              decoration: task.isCompleted
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              color: task.isCompleted ? Colors.grey : null,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: subtitleColor,
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: subtitleColor,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
 

@@ -248,20 +248,14 @@ class APIService {
     }
   }
 
-  Future<bool> getStepListByTaskId(String taskId) async {
+  Future<List<RecordModel>> getStepListByTaskId(String taskId) async {
     if (_pb == null) {
       await connectDB();
     }
 
-    try {
-      final records = await _pb!
-          .collection('steps')
-          .getFullList(filter: 'taskId="$taskId"');
-      return records.isNotEmpty;
-    } catch (e) {
-      print('Error when fetching steps for task $taskId: $e');
-      return false;
-    }
+    return await _pb!
+        .collection('steps')
+        .getFullList(filter: 'taskId="$taskId"');
   }
 
   Future<bool> createStep(
