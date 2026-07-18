@@ -5,9 +5,13 @@ import 'package:project_todo/components/successSnackBar.dart';
 import 'package:project_todo/models.dart';
 
 class EditTaskDialog extends StatefulWidget {
-  const EditTaskDialog({super.key, required this.task});
+  const EditTaskDialog({super.key, required this.task, this.existingTasks = const []});
 
   final Task task;
+
+  // Other tasks in the same project. Used to populate the
+  // "previous task" selector so the dialog doesn't need to refetch.
+  final List<Task> existingTasks;
 
   @override
   State<EditTaskDialog> createState() => _EditTaskDialogState();
@@ -20,6 +24,11 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
   // Optional due date. null means the task has no deadline.
   DateTime? _dueDate;
 
+  // The task that comes immediately before this one. null means the
+  // task is a starting point (no predecessor). Pre-seeded from the
+  // task's current previousTaskId if it points to a known task.
+  late Task? _selectedPreviousTask;
+
   String? _errorMessage;
   bool _isSending = false;
 
@@ -29,6 +38,19 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
     _nameController = TextEditingController(text: widget.task.name);
     _isCompleted = widget.task.isCompleted;
     _dueDate = widget.task.dueDate;
+    _selectedPreviousTask = _resolveInitialPreviousTask();
+  }
+
+  // Finds the Task object matching the task's current previousTaskId, so
+  // the dropdown can show the existing predecessor. Falls back to null
+  // (start of chain) if the id is missing or no longer exists.
+  Task? _resolveInitialPreviousTask() {
+    final prevId = widget.task.previousTaskId;
+    if (prevId == null) return null;
+    for (final t in widget.existingTasks) {
+      if (t.id == prevId) return t;
+    }
+    return null;
   }
 
   @override
@@ -89,7 +111,7 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
         createdAt: widget.task.createdAt,
         updatedAt: widget.task.updatedAt,
         dueDate: _dueDate,
-        previousTaskId: widget.task.previousTaskId,
+        previousTaskId: _selectedPreviousTask?.id,
         completedAt: _isCompleted
             ? (widget.task.completedAt ?? DateTime.now())
             : null,
@@ -129,6 +151,12 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Candidate predecessors: every task in the project except the one
+    // being edited (a task can't be its own predecessor).
+    final candidates = widget.existingTasks
+        .where((t) => t.id != widget.task.id)
+        .toList();
+
     return AlertDialog(
       title: const Text('Edit Task'),
       content: SingleChildScrollView(
@@ -142,7 +170,54 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
               decoration: const InputDecoration(labelText: 'Task Name'),
               onSubmitted: (_) => _save(),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
+
+            // Previous task selector.
+            if (candidates.isNotEmpty) ...[
+              DropdownButtonFormField<Task?>(
+                initialValue: _selectedPreviousTask,
+                decoration: const InputDecoration(
+                  labelText: 'Previous Task',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  DropdownMenuItem<Task?>(
+                    value: null,
+                    child: Text(
+                      'None (start of chain)',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ),
+                  ...candidates.map(
+                    (task) => DropdownMenuItem<Task?>(
+                      value: task,
+                      child: Text(task.name),
+                    ),
+                  ),
+                ],
+                onChanged: _isSending
+                    ? null
+                    : (Task? value) {
+                        setState(() {
+                          _selectedPreviousTask = value;
+                        });
+                      },
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _selectedPreviousTask == null
+                    ? 'This task will start a new chain.'
+                    : 'This task will come after "${_selectedPreviousTask!.name}".',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+            ] else ...[
+              Text(
+                'No other tasks to link as a predecessor.',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+            ],
+
+            const SizedBox(height: 16),
 
             // Optional due date selector.
             Row(

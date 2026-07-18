@@ -105,7 +105,7 @@ class _TaskPageState extends State<TaskPage> {
     await showDialog<void>(
       context: context,
       builder: (BuildContext context) {
-        return EditTaskDialog(task: task);
+        return EditTaskDialog(task: task, existingTasks: _tasks);
       },
     );
 
