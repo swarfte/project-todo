@@ -124,6 +124,7 @@ class APIService {
       'dueDate': dueDate?.toIso8601String(),
       'previousTaskId': previousTaskId,
       'completedAt': null,
+      'isFolded': false,
     };
 
     try {
@@ -219,6 +220,7 @@ class APIService {
       'dueDate': task.dueDate?.toIso8601String(),
       'previousTaskId': task.previousTaskId,
       'completedAt': task.completedAt?.toIso8601String(),
+      'isFolded': task.isFolded,
     };
 
     try {
