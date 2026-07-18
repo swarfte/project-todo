@@ -146,6 +146,42 @@ class _StepPageState extends State<StepPage> {
     }
   }
 
+  /// Opens the create dialog in insert mode, splicing a new step directly
+  /// after [afterStep] instead of appending at the tail. The dialog's
+  /// `onSubmit` callback delegates to `insertStep`, which creates the new
+  /// step and re-links the existing successor so the chain stays intact.
+  Future<void> _openInsertStepDialog(TaskStep afterStep) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return CreateStepDialog(
+          taskId: widget.task.id,
+          previousStepId: afterStep.id,
+          previousStepName: afterStep.name,
+          onSubmit: (name) async {
+            final ok = await _apiService.insertStep(name, afterStep);
+            if (!ok) {
+              // Best-effort: the create may have partially succeeded, so
+              // surface the failure but let the reload reconcile the view.
+              SuccessSnackBar.show(
+                messenger,
+                message: 'Step created, but the chain could not be fully '
+                    're-linked. Please review.',
+              );
+            }
+            return ok;
+          },
+        );
+      },
+    );
+
+    if (mounted) {
+      _loadSteps();
+    }
+  }
+
   Future<void> _openEditStepDialog(TaskStep step) async {
     await showDialog<void>(
       context: context,
@@ -320,6 +356,7 @@ class _StepPageState extends State<StepPage> {
             onToggleComplete: _toggleComplete,
             onEdit: _openEditStepDialog,
             onDelete: _confirmDeleteStep,
+            onInsert: _openInsertStepDialog,
           );
         },
       ),
@@ -370,6 +407,7 @@ class _StepRow extends StatelessWidget {
     required this.onToggleComplete,
     required this.onEdit,
     required this.onDelete,
+    required this.onInsert,
   });
 
   final TaskStep step;
@@ -379,6 +417,7 @@ class _StepRow extends StatelessWidget {
   final void Function(TaskStep step) onToggleComplete;
   final void Function(TaskStep step) onEdit;
   final void Function(TaskStep step) onDelete;
+  final void Function(TaskStep step) onInsert;
 
   static const double _gutterWidth = 36;
   static const double _badgeSize = 28;
@@ -475,6 +514,18 @@ class _StepRow extends StatelessWidget {
                       ],
                     ),
                   ),
+                  // Dedicated insert shortcut: splices a new step directly
+                  // after this one, shifting everything below down. Avoids
+                  // the delete-and-rebuild dance a mid-chain insert used to
+                  // require.
+                  IconButton(
+                    tooltip: 'Insert step after',
+                    icon: const Icon(Icons.post_add),
+                    iconSize: 22,
+                    color: Colors.amber[800],
+                    onPressed: () => onInsert(step),
+                  ),
+
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert),
                     tooltip: 'Step actions',

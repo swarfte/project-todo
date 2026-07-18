@@ -9,6 +9,7 @@ class CreateStepDialog extends StatefulWidget {
     required this.taskId,
     this.previousStepId,
     this.previousStepName,
+    this.onSubmit,
   });
 
   final String taskId;
@@ -19,6 +20,13 @@ class CreateStepDialog extends StatefulWidget {
 
   /// Display name of the previous step, used only for the hint line.
   final String? previousStepName;
+
+  /// When provided, the dialog delegates the actual creation to this
+  /// callback instead of calling `createStep` directly. Used for insert
+  /// mode, where the caller needs to splice the new step into the middle
+  /// of the chain (create + re-link successor). The callback returns true
+  /// on success; the dialog handles the success snackbar + pop.
+  final Future<bool> Function(String name)? onSubmit;
 
   @override
   State<CreateStepDialog> createState() => _CreateStepDialogState();
@@ -55,12 +63,15 @@ class _CreateStepDialogState extends State<CreateStepDialog> {
     });
 
     try {
-      final apiService = APIService();
-      final isSuccess = await apiService.createStep(
-        name,
-        widget.taskId,
-        previousStepId: widget.previousStepId,
-      );
+      // Delegate to the caller's callback when provided (insert mode);
+      // otherwise do a plain append via the API service.
+      final isSuccess = widget.onSubmit != null
+          ? await widget.onSubmit!(name)
+          : await APIService().createStep(
+              name,
+              widget.taskId,
+              previousStepId: widget.previousStepId,
+            );
 
       // The dialog may have been removed while waiting for the API.
       if (!mounted) return;
@@ -94,8 +105,13 @@ class _CreateStepDialogState extends State<CreateStepDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Insert mode is signalled by the caller passing an onSubmit callback;
+    // it changes the title and hint to describe a mid-chain splice rather
+    // than a plain append.
+    final isInsert = widget.onSubmit != null;
+
     return AlertDialog(
-      title: const Text('Create New Step'),
+      title: Text(isInsert ? 'Insert Step' : 'Create New Step'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -112,7 +128,9 @@ class _CreateStepDialogState extends State<CreateStepDialog> {
             Text(
               widget.previousStepId == null
                   ? 'This will be the first step in the chain.'
-                  : 'This step will come after "${widget.previousStepName}".',
+                  : isInsert
+                      ? 'Inserting after "${widget.previousStepName}". The steps that follow will shift down.'
+                      : 'This step will come after "${widget.previousStepName}".',
               style: TextStyle(color: Colors.grey[600], fontSize: 13),
             ),
 
