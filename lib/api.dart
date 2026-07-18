@@ -435,12 +435,61 @@ class APIService {
     }
   }
 
+  /// Deletes a step and re-links the chain so order is preserved.
+  ///
+  /// The steps collection is a linked list via `previousStepId`, so a naive
+  /// delete would orphan the deleted step's successor: its `previousStepId`
+  /// would point at a now-missing id, turning it into a second chain head
+  /// and scrambling the visible order.
+  ///
+  /// This performs the linked-list splice before deleting:
+  ///   1. Fetch the step to learn its taskId and predecessor.
+  ///   2. Find its successor (the step whose `previousStepId == stepId`).
+  ///   3. If a successor exists, re-point it at the deleted step's
+  ///      predecessor (or null if the deleted step was the head), bridging
+  ///      the gap.
+  ///   4. Delete the step.
+  ///
+  /// Returns false if the delete itself fails. Re-link failure is logged
+  /// but does not block the delete, since leaving the step in place would
+  /// be more confusing than a possibly-mislinked successor — the caller
+  /// reloads either way and `_orderSteps` is robust to extra heads.
   Future<bool> deleteStep(String stepId) async {
     if (_pb == null) {
       await connectDB();
     }
 
     try {
+      // Fetch the step we're about to delete so we know its task and
+      // predecessor, then splice the gap before removing it.
+      final step = await _getStepById(stepId);
+      if (step != null) {
+        final successorId = await _findStepSuccessor(step.taskId, stepId);
+        if (successorId != null) {
+          final successor = await _getStepById(successorId);
+          if (successor != null) {
+            // Bridge the gap: successor now follows the deleted step's
+            // predecessor (null if the deleted step was the chain head).
+            final relinked = TaskStep(
+              id: successor.id,
+              name: successor.name,
+              taskId: successor.taskId,
+              isCompleted: successor.isCompleted,
+              createdAt: successor.createdAt,
+              updatedAt: successor.updatedAt,
+              previousStepId: step.previousStepId,
+            );
+            final relinkedOk = await updateStep(relinked);
+            if (!relinkedOk) {
+              print(
+                'deleteStep: failed to re-link successor $successorId '
+                'before deleting $stepId; chain may split',
+              );
+            }
+          }
+        }
+      }
+
       await _pb!.collection('steps').delete(stepId);
       return true;
     } catch (e) {
