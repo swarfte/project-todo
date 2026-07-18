@@ -5,7 +5,11 @@ import 'package:project_todo/components/successSnackBar.dart';
 import 'package:project_todo/models.dart';
 
 class EditTaskDialog extends StatefulWidget {
-  const EditTaskDialog({super.key, required this.task, this.existingTasks = const []});
+  const EditTaskDialog({
+    super.key,
+    required this.task,
+    this.existingTasks = const [],
+  });
 
   final Task task;
 
@@ -115,6 +119,7 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
         completedAt: _isCompleted
             ? (widget.task.completedAt ?? DateTime.now())
             : null,
+        isFolded: widget.task.isFolded,
       );
 
       final isSuccess = await apiService.updateTask(updated);

@@ -177,6 +177,7 @@ class _TaskPageState extends State<TaskPage> {
       updatedAt: task.updatedAt,
       dueDate: task.dueDate,
       previousTaskId: task.previousTaskId,
+      isFolded: task.isFolded,
       completedAt: newCompleted ? (task.completedAt ?? DateTime.now()) : null,
     );
 
@@ -263,7 +264,12 @@ class _TaskPageState extends State<TaskPage> {
       final childAncestorIsLast = [...ancestorIsLast, isLastChild];
       for (var i = 0; i < localChildren.length; i++) {
         final child = localChildren[i];
-        walk(child, depth + 1, i == localChildren.length - 1, childAncestorIsLast);
+        walk(
+          child,
+          depth + 1,
+          i == localChildren.length - 1,
+          childAncestorIsLast,
+        );
       }
     }
 

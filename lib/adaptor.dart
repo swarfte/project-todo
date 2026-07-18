@@ -35,6 +35,7 @@ class TaskAdaptor {
     // PocketBase serializes empty date fields as "" rather than null.
     final dueDateStr = json['dueDate'] as String?;
     final completedAtStr = json['completedAt'] as String?;
+    final isFolded = json['isFolded'] as bool?;
     return Task(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -49,6 +50,7 @@ class TaskAdaptor {
       completedAt: completedAtStr != null && completedAtStr.isNotEmpty
           ? DateTime.parse(completedAtStr)
           : null,
+      isFolded: isFolded ?? false, // Default to false if not present
     );
   }
 
@@ -63,6 +65,7 @@ class TaskAdaptor {
       "dueDate": task.dueDate?.toIso8601String(),
       "previousTaskId": task.previousTaskId,
       "completedAt": task.completedAt?.toIso8601String(),
+      "isFolded": task.isFolded,
     };
   }
 }
