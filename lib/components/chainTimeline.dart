@@ -135,9 +135,21 @@ class TreeRow extends StatelessWidget {
     final gutterWidth = (node.depth + 1) * cellWidth;
     final badgeCenterX = (node.depth + 0.5) * cellWidth;
 
-    final subtitle = task.dueDate != null
-        ? 'Due ${formatDate(task.dueDate!)}'
-        : 'Created ${formatDate(task.createdAt)}';
+    // Decide what date to show under the task title, in priority order:
+    // completed tasks show their completion date, otherwise a pending task
+    // shows its due date if set, falling back to the creation date.
+    final String subtitle;
+    final Color subtitleColor;
+    if (task.isCompleted && task.completedAt != null) {
+      subtitle = 'Completed ${formatDate(task.completedAt!)}';
+      subtitleColor = Colors.green[700]!;
+    } else if (task.dueDate != null) {
+      subtitle = 'Due ${formatDate(task.dueDate!)}';
+      subtitleColor = dueDateColor(task.dueDate!);
+    } else {
+      subtitle = 'Created ${formatDate(task.createdAt)}';
+      subtitleColor = Colors.grey[600]!;
+    }
 
     return IntrinsicHeight(
       child: Row(
@@ -208,9 +220,7 @@ class TreeRow extends StatelessWidget {
                           subtitle,
                           style: TextStyle(
                             fontSize: 13,
-                            color: task.dueDate != null && !task.isCompleted
-                                ? dueDateColor(task.dueDate!)
-                                : Colors.grey[600],
+                            color: subtitleColor,
                           ),
                         ),
                       ],
