@@ -4,9 +4,7 @@ import 'package:project_todo/api.dart';
 import 'package:project_todo/components/createStepDialog.dart';
 import 'package:project_todo/components/editStepDialog.dart';
 import 'package:project_todo/components/successSnackBar.dart';
-// `models.dart` declares a `Step` class that collides with Flutter's own
-// `Step` (from the Stepper widget), so import it under a prefix.
-import 'package:project_todo/models.dart' as models;
+import 'package:project_todo/models.dart';
 
 /// Shows the ordered list of steps that make up a single task.
 ///
@@ -17,7 +15,7 @@ import 'package:project_todo/models.dart' as models;
 class StepPage extends StatefulWidget {
   const StepPage({super.key, required this.task});
 
-  final models.Task task;
+  final Task task;
 
   @override
   State<StepPage> createState() => _StepPageState();
@@ -26,7 +24,7 @@ class StepPage extends StatefulWidget {
 class _StepPageState extends State<StepPage> {
   final APIService _apiService = APIService();
 
-  List<models.Step> _steps = [];
+  List<TaskStep> _steps = [];
   bool _isLoading = true;
   String? _loadError;
 
@@ -71,15 +69,15 @@ class _StepPageState extends State<StepPage> {
   /// following the inverse predecessor map. Cycle guard + safety net ensure
   /// the UI never breaks on degenerate data — any unreached step is appended
   /// at the end so nothing is silently dropped.
-  List<models.Step> _orderSteps(List<models.Step> steps) {
+  List<TaskStep> _orderSteps(List<TaskStep> steps) {
     if (steps.isEmpty) return steps;
 
     final byId = {for (final s in steps) s.id: s};
 
     // parent id -> the step that comes directly after it. A linear chain has
     // at most one successor per predecessor, but we collect defensively.
-    final successorOf = <String, models.Step>{};
-    final heads = <models.Step>[];
+    final successorOf = <String, TaskStep>{};
+    final heads = <TaskStep>[];
 
     for (final s in steps) {
       final prev = s.previousStepId;
@@ -93,11 +91,11 @@ class _StepPageState extends State<StepPage> {
       }
     }
 
-    final ordered = <models.Step>[];
+    final ordered = <TaskStep>[];
     final visited = <String>{};
 
     // Walk forward from each head until we hit a cycle or a dead end.
-    void walk(models.Step current) {
+    void walk(TaskStep current) {
       var node = current;
       while (true) {
         if (visited.contains(node.id)) return; // cycle guard
@@ -148,7 +146,7 @@ class _StepPageState extends State<StepPage> {
     }
   }
 
-  Future<void> _openEditStepDialog(models.Step step) async {
+  Future<void> _openEditStepDialog(TaskStep step) async {
     await showDialog<void>(
       context: context,
       builder: (BuildContext context) {
@@ -163,7 +161,7 @@ class _StepPageState extends State<StepPage> {
     }
   }
 
-  Future<void> _confirmDeleteStep(models.Step step) async {
+  Future<void> _confirmDeleteStep(TaskStep step) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -213,8 +211,8 @@ class _StepPageState extends State<StepPage> {
 
   /// Toggles a step's completion status. A quick way to tick a step off
   /// without opening the edit dialog.
-  Future<void> _toggleComplete(models.Step step) async {
-    final updated = models.Step(
+  Future<void> _toggleComplete(TaskStep step) async {
+    final updated = TaskStep(
       id: step.id,
       name: step.name,
       taskId: step.taskId,
@@ -374,13 +372,13 @@ class _StepRow extends StatelessWidget {
     required this.onDelete,
   });
 
-  final models.Step step;
+  final TaskStep step;
   final int number;
   final bool isFirst;
   final bool isLast;
-  final void Function(models.Step step) onToggleComplete;
-  final void Function(models.Step step) onEdit;
-  final void Function(models.Step step) onDelete;
+  final void Function(TaskStep step) onToggleComplete;
+  final void Function(TaskStep step) onEdit;
+  final void Function(TaskStep step) onDelete;
 
   static const double _gutterWidth = 36;
   static const double _badgeSize = 28;

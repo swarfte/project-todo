@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:project_todo/api.dart';
 import 'package:project_todo/components/errorMessageBox.dart';
 import 'package:project_todo/components/successSnackBar.dart';
-// `models.dart` declares a `Step` class that collides with Flutter's own
-// `Step` (from the Stepper widget), so import it under a prefix.
-import 'package:project_todo/models.dart' as models;
+import 'package:project_todo/models.dart';
 
 class EditStepDialog extends StatefulWidget {
   const EditStepDialog({super.key, required this.step});
 
-  final models.Step step;
+  final TaskStep step;
 
   @override
   State<EditStepDialog> createState() => _EditStepDialogState();
@@ -55,7 +53,7 @@ class _EditStepDialogState extends State<EditStepDialog> {
 
     try {
       final apiService = APIService();
-      final updated = models.Step(
+      final updated = TaskStep(
         id: widget.step.id,
         name: name,
         taskId: widget.step.taskId,

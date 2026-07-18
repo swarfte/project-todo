@@ -71,19 +71,38 @@ class TaskAdaptor {
 }
 
 class StepAdaptor {
-  static Step fromJson(Map<String, dynamic> json) {
-    return Step(
+  static TaskStep fromJson(Map<String, dynamic> json) {
+    // PocketBase serializes empty date fields as "" rather than null.
+    // Also, some collections rely on PocketBase's built-in `created` /
+    // `updated` audit fields instead of custom `createdAt`/`updatedAt`
+    // fields, so fall back to those if the custom fields are absent.
+    // Without this fallback, `DateTime.parse(null)` throws and the whole
+    // step list fails to load.
+    DateTime parseDate(String primary, String fallback) {
+      final primaryStr = json[primary] as String?;
+      if (primaryStr != null && primaryStr.isNotEmpty) {
+        return DateTime.parse(primaryStr);
+      }
+      final fallbackStr = json[fallback] as String?;
+      if (fallbackStr != null && fallbackStr.isNotEmpty) {
+        return DateTime.parse(fallbackStr);
+      }
+      // Last resort so the UI never crashes on missing dates.
+      return DateTime.fromMillisecondsSinceEpoch(0);
+    }
+
+    return TaskStep(
       id: json['id'] as String,
       name: json['name'] as String,
       taskId: json['taskId'] as String,
-      isCompleted: json['isCompleted'] as bool,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      isCompleted: json['isCompleted'] as bool? ?? false,
+      createdAt: parseDate('createdAt', 'created'),
+      updatedAt: parseDate('updatedAt', 'updated'),
       previousStepId: json['previousStepId'] as String?,
     );
   }
 
-  static Map<String, dynamic> toJson(Step step) {
+  static Map<String, dynamic> toJson(TaskStep step) {
     return {
       "id": step.id,
       "name": step.name,

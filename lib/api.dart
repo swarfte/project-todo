@@ -285,7 +285,7 @@ class APIService {
     }
   }
 
-  Future<bool> updateStep(Step step) async {
+  Future<bool> updateStep(TaskStep step) async {
     if (_pb == null) {
       await connectDB();
     }

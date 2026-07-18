@@ -44,7 +44,7 @@ class Task {
   });
 }
 
-class Step {
+class TaskStep {
   String id;
   String name;
   String taskId;
@@ -53,7 +53,7 @@ class Step {
   DateTime updatedAt;
   String? previousStepId;
 
-  Step({
+  TaskStep({
     required this.id,
     required this.name,
     required this.taskId,
