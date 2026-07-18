@@ -245,4 +245,83 @@ class APIService {
       return false;
     }
   }
+
+  Future<bool> getStepListByTaskId(String taskId) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    try {
+      final records = await _pb!
+          .collection('steps')
+          .getFullList(filter: 'taskId="$taskId"');
+      return records.isNotEmpty;
+    } catch (e) {
+      print('Error when fetching steps for task $taskId: $e');
+      return false;
+    }
+  }
+
+  Future<bool> createStep(
+    String name,
+    String taskId, {
+    String? previousStepId,
+  }) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    final body = {
+      'name': name,
+      'taskId': taskId,
+      'isCompleted': false,
+      'previousStepId': previousStepId,
+    };
+
+    try {
+      final response = await _pb!
+          .collection('steps')
+          .create(body: body, files: []);
+      return response.id.isNotEmpty ? true : false;
+    } catch (e) {
+      print('Error when creating step: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateStep(Step step) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    final body = {
+      'name': step.name,
+      'isCompleted': step.isCompleted,
+      'previousStepId': step.previousStepId,
+    };
+
+    try {
+      final response = await _pb!
+          .collection('steps')
+          .update(step.id, body: body, files: []);
+      return response.id.isNotEmpty ? true : false;
+    } catch (e) {
+      print('Error when updating step: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteStep(String stepId) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    try {
+      await _pb!.collection('steps').delete(stepId);
+      return true;
+    } catch (e) {
+      print('Error when deleting step: $e');
+      return false;
+    }
+  }
 }
