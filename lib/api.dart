@@ -179,6 +179,35 @@ class APIService {
         .getFullList(filter: 'projectId="$projectId"');
   }
 
+  /// Returns task counts keyed by project id: how many tasks each project
+  /// has in total and how many of those are completed.
+  ///
+  /// PocketBase's REST API does not expose a COUNT aggregate, so this fetches
+  /// all tasks in a single `getFullList` call and aggregates client-side.
+  /// One network request regardless of how many projects exist.
+  Future<Map<String, ({int total, int completed})>>
+  getTaskCountsByProject() async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    final records = await _pb!.collection('tasks').getFullList();
+
+    final counts = <String, ({int total, int completed})>{};
+    for (final r in records) {
+      final json = r.toJson();
+      final projectId = json['projectId'] as String?;
+      if (projectId == null) continue;
+      final isCompleted = json['isCompleted'] == true;
+      final current = counts[projectId] ?? (total: 0, completed: 0);
+      counts[projectId] = (
+        total: current.total + 1,
+        completed: current.completed + (isCompleted ? 1 : 0),
+      );
+    }
+    return counts;
+  }
+
   Future<bool> updateTask(Task task) async {
     if (_pb == null) {
       await connectDB();

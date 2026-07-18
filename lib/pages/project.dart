@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pocketbase/pocketbase.dart';
 import 'package:project_todo/adaptor.dart';
 import 'package:project_todo/api.dart';
 import 'package:project_todo/components/settingDialog.dart';
@@ -19,6 +20,9 @@ class _HomePageState extends State<HomePage> {
   final APIService _apiService = APIService();
 
   List<Project> _projects = [];
+  // Per-project task counts, keyed by project id. Loaded alongside the
+  // project list so each row can show "completed / total".
+  Map<String, ({int total, int completed})> _taskCounts = {};
   bool _isLoading = true;
   String? _loadError;
 
@@ -35,7 +39,15 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
-      final records = await _apiService.getProjectList();
+      // Fetch projects and task counts in parallel to keep latency low.
+      final results = await Future.wait([
+        _apiService.getProjectList(),
+        _apiService.getTaskCountsByProject(),
+      ]);
+      final records = results[0] as List<RecordModel>;
+      final counts =
+          results[1] as Map<String, ({int total, int completed})>;
+
       final projects = records
           .map((r) => ProjectAdaptor.fromJson(r.toJson()))
           .toList();
@@ -44,6 +56,7 @@ class _HomePageState extends State<HomePage> {
 
       setState(() {
         _projects = projects;
+        _taskCounts = counts;
         _isLoading = false;
       });
     } catch (error) {
@@ -246,16 +259,43 @@ class _HomePageState extends State<HomePage> {
         itemCount: _projects.length,
         itemBuilder: (BuildContext context, int index) {
           final project = _projects[index];
+          final counts = _taskCounts[project.id];
+          final totalTasks = counts?.total ?? 0;
+          final completedTasks = counts?.completed ?? 0;
           return Card(
             child: ListTile(
-              leading: Icon(
-                project.isCompleted
-                    ? Icons.check_circle
-                    : Icons.folder_outlined,
-                color: project.isCompleted ? Colors.green : Colors.blue[600],
+              leading: _ProjectProgressIndicator(
+                isCompleted: project.isCompleted,
+                completed: completedTasks,
+                total: totalTasks,
               ),
               title: Text(project.name),
-              subtitle: Text('Created ${_formatDate(project.createdAt)}'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 2),
+                  Text(
+                    totalTasks == 0
+                        ? 'No tasks'
+                        : '$completedTasks / $totalTasks tasks done',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: totalTasks == 0
+                          ? Colors.grey[600]
+                          : (completedTasks == totalTasks
+                                ? Colors.green[700]
+                                : Colors.blue[700]),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Created ${_formatDate(project.createdAt)}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -314,6 +354,91 @@ class _HomePageState extends State<HomePage> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// A circular progress ring that doubles as the project row's leading icon.
+///
+/// - Fully completed project (or all tasks done): a green check.
+/// - Project with tasks: a ring filled to `completed / total`, with the
+///   remaining count drawn in the centre.
+/// - Project with no tasks yet: an empty folder outline.
+class _ProjectProgressIndicator extends StatelessWidget {
+  const _ProjectProgressIndicator({
+    required this.isCompleted,
+    required this.completed,
+    required this.total,
+  });
+
+  final bool isCompleted;
+  final int completed;
+  final int total;
+
+  static const double _size = 40;
+  static const double _stroke = 4;
+
+  @override
+  Widget build(BuildContext context) {
+    // Fully done: show a check, no ring math needed.
+    if (isCompleted || (total > 0 && completed == total)) {
+      return Container(
+        width: _size,
+        height: _size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.green,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.check, size: 22, color: Colors.white),
+      );
+    }
+
+    // No tasks yet: an empty folder outline as before.
+    if (total == 0) {
+      return Icon(Icons.folder_outlined, size: 30, color: Colors.blue[600]);
+    }
+
+    final progress = completed / total;
+
+    return SizedBox(
+      width: _size,
+      height: _size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Track ring.
+          SizedBox(
+            width: _size,
+            height: _size,
+            child: CircularProgressIndicator(
+              value: 1,
+              strokeWidth: _stroke,
+              color: Colors.grey[300],
+            ),
+          ),
+          // Progress ring.
+          SizedBox(
+            width: _size,
+            height: _size,
+            child: CircularProgressIndicator(
+              value: progress,
+              strokeWidth: _stroke,
+              color: Colors.blue[600],
+              backgroundColor: Colors.transparent,
+            ),
+          ),
+          // Remaining count in the centre.
+          Text(
+            '${total - completed}',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue[700],
+            ),
+          ),
+        ],
       ),
     );
   }
