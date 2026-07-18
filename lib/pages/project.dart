@@ -166,14 +166,22 @@ class _HomePageState extends State<HomePage> {
           IconButton(
             icon: Icon(Icons.settings),
             tooltip: 'Settings',
-            onPressed: () {
-              // show settingDialog when the settings button is pressed
-              showDialog(
+            onPressed: () async {
+              // show settingDialog when the settings button is pressed.
+              // SettingDialog pops with `true` only when the connection
+              // succeeds, `false` when cancelled.
+              final saved = await showDialog<bool>(
                 context: context,
                 builder: (BuildContext context) {
                   return SettingDialog();
                 },
               );
+
+              // Refresh the project list when settings were saved and the
+              // connection test succeeded, so the new user's projects load.
+              if (saved == true && mounted) {
+                _loadProjects();
+              }
             },
           ),
         ],
