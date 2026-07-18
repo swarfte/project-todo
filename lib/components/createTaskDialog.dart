@@ -163,36 +163,6 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
               ),
             ] else if (canSelectPrevious) ...[
               // Previous task selector.
-              DropdownButtonFormField<Task?>(
-                initialValue: _selectedPreviousTask,
-                decoration: const InputDecoration(
-                  labelText: 'Previous Task',
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  DropdownMenuItem<Task?>(
-                    value: null,
-                    child: Text(
-                      'None (start of chain)',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ),
-                  ...widget.existingTasks.map(
-                    (task) => DropdownMenuItem<Task?>(
-                      value: task,
-                      child: Text(task.name),
-                    ),
-                  ),
-                ],
-                onChanged: _isSending
-                    ? null
-                    : (Task? value) {
-                        setState(() {
-                          _selectedPreviousTask = value;
-                        });
-                      },
-              ),
-              const SizedBox(height: 8),
               Text(
                 _selectedPreviousTask == null
                     ? 'This task will start a new chain.'
