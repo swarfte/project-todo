@@ -227,12 +227,6 @@ class TreeRow extends StatelessWidget {
                     ),
                   ),
 
-                  if (task.isCompleted)
-                    Chip(
-                      label: const Text('Done'),
-                      backgroundColor: Colors.green[100],
-                    ),
-
                   // Quick shortcut to add a subtask that comes after this
                   // task, without having to pick the predecessor manually.
                   IconButton(

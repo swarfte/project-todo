@@ -45,8 +45,7 @@ class _HomePageState extends State<HomePage> {
         _apiService.getTaskCountsByProject(),
       ]);
       final records = results[0] as List<RecordModel>;
-      final counts =
-          results[1] as Map<String, ({int total, int completed})>;
+      final counts = results[1] as Map<String, ({int total, int completed})>;
 
       final projects = records
           .map((r) => ProjectAdaptor.fromJson(r.toJson()))
@@ -313,11 +312,6 @@ class _HomePageState extends State<HomePage> {
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (project.isCompleted)
-                    Chip(
-                      label: const Text('Done'),
-                      backgroundColor: Colors.green[100],
-                    ),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert),
                     tooltip: 'Project actions',
@@ -393,10 +387,7 @@ class _ProjectProgressIndicator extends StatelessWidget {
         width: _size,
         height: _size,
         alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: Colors.green,
-          shape: BoxShape.circle,
-        ),
+        decoration: BoxDecoration(color: Colors.green, shape: BoxShape.circle),
         child: const Icon(Icons.check, size: 22, color: Colors.white),
       );
     }
