@@ -7,6 +7,14 @@ class ConfigService {
   static const String _apiUrlKey = 'api_url';
   static const String _usernameKey = 'username';
   static const String _passwordKey = 'password';
+
+  // Defaults applied on first launch so a brand-new install can connect to
+  // the seeded PocketBase backend without any setup. Once the user saves
+  // their own values, the saved value always wins over these.
+  static const String defaultApiUrl = 'http://127.0.0.1:8090';
+  static const String defaultUsername = 'admin@gmail.com';
+  static const String defaultPassword = 'admin1234';
+
   static final ConfigService _instance = ConfigService._internal();
 
   factory ConfigService() {
@@ -21,7 +29,7 @@ class ConfigService {
   Future<String> getApiUrl() async {
     final preference = await SharedPreferences.getInstance();
 
-    return preference.getString(_apiUrlKey) ?? '';
+    return preference.getString(_apiUrlKey) ?? defaultApiUrl;
   }
 
   Future<void> saveUsername(String value) async {
@@ -31,7 +39,7 @@ class ConfigService {
 
   Future<String> getUsername() async {
     final preference = await SharedPreferences.getInstance();
-    return preference.getString(_usernameKey) ?? '';
+    return preference.getString(_usernameKey) ?? defaultUsername;
   }
 
   Future<void> savePassword(String value) async {
@@ -41,7 +49,7 @@ class ConfigService {
 
   Future<String> getPassword() async {
     final preference = await SharedPreferences.getInstance();
-    return preference.getString(_passwordKey) ?? '';
+    return preference.getString(_passwordKey) ?? defaultPassword;
   }
 
   Future<void> clearConfig() async {
