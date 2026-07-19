@@ -110,59 +110,17 @@ lib/
 
 ### Prerequisites
 - [Flutter](https://docs.flutter.dev/get-started/install) (SDK `^3.10.1`)
-- A reachable [PocketBase](https://pocketbase.io/) instance
 
-### 1. Set up the PocketBase backend
+A PocketBase server is **not** something you need to install or configure
+separately — the bundled binary in `server/` already contains the full
+schema and seed data (see step 1 below).
 
-Create three collections in your PocketBase instance. Field names must match
-the adaptors in `lib/adaptor.dart`.
+### 1. Start the backend
 
-**`users`** — PocketBase's built-in auth collection.
-
-**`projects`**
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `name` | text | |
-| `userId` | relation → `users` | |
-| `isCompleted` | bool | default `false` |
-| `completedAt` | date | nullable |
-| `createdAt` | autodate | |
-| `updatedAt` | autodate | |
-
-**`tasks`**
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `name` | text | |
-| `projectId` | relation → `projects` | |
-| `userId` | relation → `users` | |
-| `isCompleted` | bool | default `false` |
-| `dueDate` | date | nullable |
-| `previousTaskId` | relation → `tasks` | self-reference; nullable (root task) |
-| `completedAt` | date | nullable |
-| `isFolded` | bool | default `false` |
-| `createdAt` | autodate | |
-| `updatedAt` | autodate | |
-
-**`steps`**
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `name` | text | |
-| `taskId` | relation → `tasks` | |
-| `isCompleted` | bool | default `false` |
-| `previousStepId` | relation → `steps` | self-reference; nullable (chain head) |
-| `createdAt` | autodate | optional — falls back to PocketBase `created` |
-| `updatedAt` | autodate | optional — falls back to PocketBase `updated` |
-
-Grant authenticated `users` CRUD access to the `projects`, `tasks`, and
-`steps` collections via the PocketBase API rules.
-
-### 2. Start the backend
-
-The bundled PocketBase server lives at `server/pocketbase.exe`. Start it
-before launching the app — the Flutter client connects to it on startup:
+The bundled PocketBase server lives at `server/pocketbase.exe`. Its
+`pb_data/` folder already ships with the `users`, `projects`, `tasks`, and
+`steps` collections, their relations, API rules, and basic seed data for
+testing — so there is **no backend setup step**: just start it.
 
 ```bash
 ./server/pocketbase.exe serve
@@ -171,14 +129,14 @@ before launching the app — the Flutter client connects to it on startup:
 This serves the API at `http://127.0.0.1:8090` (the app's default API URL).
 Leave this terminal running in the background.
 
-### 3. Run the app
+### 2. Run the app
 
 ```bash
 flutter pub get
 flutter run
 ```
 
-### 4. Connect to your backend
+### 3. Connect to your backend
 
 On first launch, the app is pre-filled with the seeded backend's defaults
 so you can start immediately:
@@ -232,6 +190,55 @@ that supports relations, at the cost of some client-side graph walking:
 - **Mid-chain inserts and deletes** splice the linked list inside
   `APIService` (`insertStep`, `deleteStep`) so the chain never orphans a
   successor.
+
+### Collection schema
+
+These collections ship pre-created inside `server/pb_data/data.db`, so you
+don't need to set them up. Field names must match the adaptors in
+`lib/adaptor.dart`; the tables below are reference for anyone inspecting
+or extending the bundled schema.
+
+**`users`** — PocketBase's built-in auth collection.
+
+**`projects`**
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | text | |
+| `userId` | relation → `users` | |
+| `isCompleted` | bool | default `false` |
+| `completedAt` | date | nullable |
+| `createdAt` | autodate | |
+| `updatedAt` | autodate | |
+
+**`tasks`**
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | text | |
+| `projectId` | relation → `projects` | |
+| `userId` | relation → `users` | |
+| `isCompleted` | bool | default `false` |
+| `dueDate` | date | nullable |
+| `previousTaskId` | relation → `tasks` | self-reference; nullable (root task) |
+| `completedAt` | date | nullable |
+| `isFolded` | bool | default `false` |
+| `createdAt` | autodate | |
+| `updatedAt` | autodate | |
+
+**`steps`**
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | text | |
+| `taskId` | relation → `tasks` | |
+| `isCompleted` | bool | default `false` |
+| `previousStepId` | relation → `steps` | self-reference; nullable (chain head) |
+| `createdAt` | autodate | optional — falls back to PocketBase `created` |
+| `updatedAt` | autodate | optional — falls back to PocketBase `updated` |
+
+Authenticated `users` have CRUD access to the `projects`, `tasks`, and
+`steps` collections via the PocketBase API rules (also pre-configured).
 
 ---
 
