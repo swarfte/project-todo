@@ -159,20 +159,37 @@ the adaptors in `lib/adaptor.dart`.
 Grant authenticated `users` CRUD access to the `projects`, `tasks`, and
 `steps` collections via the PocketBase API rules.
 
-### 2. Run the app
+### 2. Start the backend
+
+The bundled PocketBase server lives at `server/pocketbase.exe`. Start it
+before launching the app — the Flutter client connects to it on startup:
+
+```bash
+./server/pocketbase.exe serve
+```
+
+This serves the API at `http://127.0.0.1:8090` (the app's default API URL).
+Leave this terminal running in the background.
+
+### 3. Run the app
 
 ```bash
 flutter pub get
 flutter run
 ```
 
-### 3. Connect to your backend
+### 4. Connect to your backend
 
-On first launch, open the **Settings** dialog (gear icon in the top-right
-corner of the project page) and enter:
+On first launch, the app is pre-filled with the seeded backend's defaults
+so you can start immediately:
 
-- **API URL** — your PocketBase base URL (e.g. `http://localhost:8090`)
-- **Username** / **Password** — a user from the `users` collection
+- **API URL** — `http://127.0.0.1:8090`
+- **Username** — `admin@gmail.com`
+- **Password** — `admin1234`
+
+If you're running your own backend, open the **Settings** dialog (gear icon
+in the top-right corner of the project page) and update the values to your
+PocketBase base URL and a user from your `users` collection.
 
 The dialog tests the connection before saving; once it succeeds, your
 projects load automatically.
