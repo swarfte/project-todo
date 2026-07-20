@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pocketbase/pocketbase.dart';
 import 'package:project_todo/adaptor.dart';
 import 'package:project_todo/api.dart';
 import 'package:project_todo/components/createTaskDialog.dart';
@@ -26,6 +27,9 @@ class _TaskPageState extends State<TaskPage> {
   final APIService _apiService = APIService();
 
   List<Task> _tasks = [];
+  // Step counts keyed by task id. Only tasks that have at least one step
+  // appear here; absence means "no steps" (and so no progress line is drawn).
+  Map<String, ({int total, int completed})> _stepCounts = const {};
   bool _isLoading = true;
   String? _loadError;
 
@@ -42,9 +46,17 @@ class _TaskPageState extends State<TaskPage> {
     });
 
     try {
-      final records = await _apiService.getTaskListByProjectId(
+      // Fetch tasks and step counts together: the tasks call is scoped to
+      // this project, while step counts are fetched globally and joined by
+      // task id. Tasks without steps simply won't have an entry.
+      final recordsFuture = _apiService.getTaskListByProjectId(
         widget.project.id,
       );
+      final countsFuture = _apiService.getStepCountsByTask();
+      final results = await Future.wait([countsFuture, recordsFuture]);
+
+      final counts = results[0] as Map<String, ({int total, int completed})>;
+      final records = results[1] as List<RecordModel>;
       final tasks = records
           .map((r) => TaskAdaptor.fromJson(r.toJson()))
           .toList();
@@ -53,6 +65,7 @@ class _TaskPageState extends State<TaskPage> {
 
       setState(() {
         _tasks = tasks;
+        _stepCounts = counts;
         _isLoading = false;
       });
     } catch (error) {
@@ -597,6 +610,7 @@ class _TaskPageState extends State<TaskPage> {
           return ChainTimeline(
             nodes: tree,
             formatDate: _formatDate,
+            stepCounts: _stepCounts,
             onToggleComplete: _toggleComplete,
             onEdit: _openEditTaskDialog,
             onDelete: _confirmDeleteTask,

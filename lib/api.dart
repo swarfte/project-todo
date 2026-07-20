@@ -479,6 +479,36 @@ class APIService {
         .getFullList(filter: 'taskId="$taskId"');
   }
 
+  /// Returns step counts keyed by task id: how many steps each task has in
+  /// total and how many of those are completed.
+  ///
+  /// PocketBase's REST API does not expose a COUNT aggregate, so this fetches
+  /// every step in a single `getFullList` call and aggregates client-side.
+  /// One network request regardless of how many tasks exist. Tasks without
+  /// steps are omitted from the map (callers treat absence as "no steps").
+  Future<Map<String, ({int total, int completed})>>
+  getStepCountsByTask() async {
+    if (_pb == null) {
+      await connectDB();
+    }
+
+    final records = await _pb!.collection('steps').getFullList();
+
+    final counts = <String, ({int total, int completed})>{};
+    for (final r in records) {
+      final json = r.toJson();
+      final taskId = json['taskId'] as String?;
+      if (taskId == null) continue;
+      final isCompleted = json['isCompleted'] == true;
+      final current = counts[taskId] ?? (total: 0, completed: 0);
+      counts[taskId] = (
+        total: current.total + 1,
+        completed: current.completed + (isCompleted ? 1 : 0),
+      );
+    }
+    return counts;
+  }
+
   Future<bool> createStep(
     String name,
     String taskId, {
