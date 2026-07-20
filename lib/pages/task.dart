@@ -180,6 +180,33 @@ class _TaskPageState extends State<TaskPage> {
     }
   }
 
+  /// Deep-duplicates a task along with its subtasks and steps. The new root
+  /// task is named "`{task.name} copy`" and becomes a sibling of the original;
+  /// completion status, due date, fold state, step chains, and step statuses
+  /// are all carried over so the copy mirrors the original.
+  ///
+  /// Shows a snackbar on success or failure and refreshes the list.
+  Future<void> _duplicateTask(Task task) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    final newId = await _apiService.duplicateTask(task);
+
+    if (!mounted) return;
+
+    if (newId != null) {
+      SuccessSnackBar.show(
+        messenger,
+        message: 'Duplicated "${task.name}" as "${task.name} copy".',
+      );
+      _loadTasks();
+    } else {
+      SuccessSnackBar.show(
+        messenger,
+        message: 'Failed to duplicate "${task.name}".',
+      );
+    }
+  }
+
   /// Toggles a task's completion status. A quick way to tick a task off
   /// without opening the edit dialog.
   Future<void> _toggleComplete(Task task) async {
@@ -576,6 +603,7 @@ class _TaskPageState extends State<TaskPage> {
             onAddSubtask: _openCreateSubtaskDialog,
             onToggleFold: _toggleFold,
             onOpen: _openStepPage,
+            onDuplicate: _duplicateTask,
           );
         },
       ),

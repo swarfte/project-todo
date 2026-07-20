@@ -75,6 +75,7 @@ class ChainTimeline extends StatelessWidget {
     required this.onAddSubtask,
     required this.onToggleFold,
     required this.onOpen,
+    required this.onDuplicate,
   });
 
   final List<FlatTaskNode> nodes;
@@ -88,6 +89,10 @@ class ChainTimeline extends StatelessWidget {
   /// Opens the task (e.g. navigates into its step page). Triggered by
   /// tapping the task title.
   final void Function(Task task) onOpen;
+
+  /// Deep-duplicates the task (and its subtasks/steps). Triggered from the
+  /// row's actions menu.
+  final void Function(Task task) onDuplicate;
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +116,7 @@ class ChainTimeline extends StatelessWidget {
                   onAddSubtask: onAddSubtask,
                   onToggleFold: onToggleFold,
                   onOpen: onOpen,
+                  onDuplicate: onDuplicate,
                 ),
             ],
           ),
@@ -133,6 +139,7 @@ class TreeRow extends StatelessWidget {
     required this.onAddSubtask,
     required this.onToggleFold,
     required this.onOpen,
+    required this.onDuplicate,
   });
 
   final FlatTaskNode node;
@@ -143,6 +150,7 @@ class TreeRow extends StatelessWidget {
   final void Function(Task task) onAddSubtask;
   final void Function(Task task) onToggleFold;
   final void Function(Task task) onOpen;
+  final void Function(Task task) onDuplicate;
 
   static const double cellWidth = 30;
   static const double badgeSize = 26;
@@ -286,6 +294,9 @@ class TreeRow extends StatelessWidget {
                         case 'edit':
                           onEdit(task);
                           break;
+                        case 'duplicate':
+                          onDuplicate(task);
+                          break;
                         case 'delete':
                           onDelete(task);
                           break;
@@ -298,6 +309,15 @@ class TreeRow extends StatelessWidget {
                           child: ListTile(
                             leading: Icon(Icons.edit_outlined),
                             title: Text('Edit'),
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                          ),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'duplicate',
+                          child: ListTile(
+                            leading: Icon(Icons.copy_outlined),
+                            title: Text('Duplicate'),
                             contentPadding: EdgeInsets.zero,
                             dense: true,
                           ),

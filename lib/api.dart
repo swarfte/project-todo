@@ -249,6 +249,226 @@ class APIService {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Task duplication
+  // ---------------------------------------------------------------------------
+
+  /// Deep-duplicates [original] and its entire subtree into the same project.
+  ///
+  /// The duplicate's root is a sibling of [original] (it reuses [original]'s
+  /// `previousTaskId`), is named "`{original.name} copy`", and carries over
+  /// the original's completion status, due date, fold state, and step chain —
+  /// including each step's completion status. Every descendant task is
+  /// duplicated the same way, with fresh `previousTaskId` links pointing at
+  /// the newly created parents so the copied tree mirrors the original.
+  ///
+  /// Returns the id of the newly created root task, or null if that root
+  /// could not be created. Failures deeper in the subtree are logged but do
+  /// not abort the rest: the parts that did copy stay in the DB, and the
+  /// caller's reload reconciles the view.
+  Future<String?> duplicateTask(Task original) async {
+    final newRootId = await _createTaskRecord(
+      name: '${original.name} copy',
+      projectId: original.projectId,
+      previousTaskId: original.previousTaskId,
+      dueDate: original.dueDate,
+      isCompleted: original.isCompleted,
+      completedAt: original.completedAt,
+      isFolded: original.isFolded,
+    );
+    if (newRootId == null) return null;
+
+    await _copySteps(original.id, newRootId);
+    await _duplicateChildren(original.id, newRootId);
+
+    return newRootId;
+  }
+
+  /// Recursively duplicates every direct child of [originalId] under
+  /// [newParentId], preserving each child's fields and step chain.
+  Future<void> _duplicateChildren(
+    String originalId,
+    String newParentId,
+  ) async {
+    final children = await _getDirectChildTasks(originalId);
+    for (final child in children) {
+      final newChildId = await _createTaskRecord(
+        name: child.name,
+        projectId: child.projectId,
+        previousTaskId: newParentId,
+        dueDate: child.dueDate,
+        isCompleted: child.isCompleted,
+        completedAt: child.completedAt,
+        isFolded: child.isFolded,
+      );
+      if (newChildId == null) continue;
+
+      await _copySteps(child.id, newChildId);
+      await _duplicateChildren(child.id, newChildId);
+    }
+  }
+
+  /// Returns the tasks whose `previousTaskId` equals [parentId] — the direct
+  /// successors of [parentId] in the task tree.
+  Future<List<Task>> _getDirectChildTasks(String parentId) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+    try {
+      final records = await _pb!
+          .collection('tasks')
+          .getFullList(filter: 'previousTaskId="$parentId"');
+      return records
+          .map((r) => TaskAdaptor.fromJson(r.toJson()))
+          .toList();
+    } catch (e) {
+      print('Error fetching child tasks of $parentId: $e');
+      return const [];
+    }
+  }
+
+  /// Copies the ordered step chain of [originalTaskId] into [newTaskId],
+  /// preserving each step's name and completion status and rebuilding the
+  /// `previousStepId` links so the new chain matches the original order.
+  Future<void> _copySteps(String originalTaskId, String newTaskId) async {
+    final records = await getStepListByTaskId(originalTaskId);
+    final steps = records
+        .map((r) => StepAdaptor.fromJson(r.toJson()))
+        .toList();
+    final ordered = _orderSteps(steps);
+
+    String? previousNewStepId;
+    for (final step in ordered) {
+      final newStepId = await _createStepRecord(
+        name: step.name,
+        taskId: newTaskId,
+        previousStepId: previousNewStepId,
+        isCompleted: step.isCompleted,
+      );
+      if (newStepId != null) {
+        previousNewStepId = newStepId;
+      }
+    }
+  }
+
+  /// Creates a task record and returns its id, preserving completion status,
+  /// fold state, due date, and completion timestamp. Unlike [createTask],
+  /// which forces `isCompleted: false` and returns only a bool, this returns
+  /// the new id so the caller can link descendants to it.
+  Future<String?> _createTaskRecord({
+    required String name,
+    required String projectId,
+    String? previousTaskId,
+    DateTime? dueDate,
+    required bool isCompleted,
+    DateTime? completedAt,
+    bool isFolded = false,
+  }) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+    final body = {
+      'name': name,
+      'projectId': projectId,
+      'userId': _authData!.record.id,
+      'isCompleted': isCompleted,
+      'dueDate': dueDate?.toIso8601String(),
+      'previousTaskId': previousTaskId,
+      'completedAt': completedAt?.toIso8601String(),
+      'isFolded': isFolded,
+    };
+    try {
+      final response = await _pb!
+          .collection('tasks')
+          .create(body: body, files: []);
+      return response.id.isNotEmpty ? response.id : null;
+    } catch (e) {
+      print('Error when creating task record: $e');
+      return null;
+    }
+  }
+
+  /// Creates a step record and returns its id, preserving completion status.
+  /// Unlike [createStep], which forces `isCompleted: false` and returns only
+  /// a bool, this returns the new id so the caller can chain the next step.
+  Future<String?> _createStepRecord({
+    required String name,
+    required String taskId,
+    String? previousStepId,
+    required bool isCompleted,
+  }) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+    final body = {
+      'name': name,
+      'taskId': taskId,
+      'isCompleted': isCompleted,
+      'previousStepId': previousStepId,
+    };
+    try {
+      final response = await _pb!
+          .collection('steps')
+          .create(body: body, files: []);
+      return response.id.isNotEmpty ? response.id : null;
+    } catch (e) {
+      print('Error when creating step record: $e');
+      return null;
+    }
+  }
+
+  /// Reconstructs the linear step chain from `previousStepId` links. Mirrors
+  /// `StepPage._orderSteps`: heads (no valid predecessor) are walked forward
+  /// in stable insertion order, with a cycle guard and a safety net that
+  /// appends any unreached step so nothing is silently dropped.
+  static List<TaskStep> _orderSteps(List<TaskStep> steps) {
+    if (steps.isEmpty) return steps;
+
+    final byId = {for (final s in steps) s.id: s};
+
+    final successorOf = <String, TaskStep>{};
+    final heads = <TaskStep>[];
+
+    for (final s in steps) {
+      final prev = s.previousStepId;
+      final hasValidPrev =
+          prev != null && byId.containsKey(prev) && prev != s.id;
+      if (!hasValidPrev) {
+        heads.add(s);
+      } else {
+        successorOf.putIfAbsent(prev, () => s);
+      }
+    }
+
+    final ordered = <TaskStep>[];
+    final visited = <String>{};
+
+    void walk(TaskStep current) {
+      var node = current;
+      while (true) {
+        if (visited.contains(node.id)) return; // cycle guard
+        visited.add(node.id);
+        ordered.add(node);
+        final next = successorOf[node.id];
+        if (next == null) return;
+        node = next;
+      }
+    }
+
+    for (final head in heads) {
+      walk(head);
+    }
+
+    // Safety net: append any step not reached on degenerate data.
+    for (final s in steps) {
+      if (!visited.contains(s.id)) {
+        ordered.add(s);
+      }
+    }
+
+    return ordered;
+  }
+
   Future<List<RecordModel>> getStepListByTaskId(String taskId) async {
     if (_pb == null) {
       await connectDB();
