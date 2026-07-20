@@ -4,8 +4,6 @@ class Project {
   String userId;
   DateTime createdAt;
   DateTime updatedAt;
-  bool isCompleted;
-  DateTime? completedAt;
 
   Project({
     required this.id,
@@ -13,8 +11,6 @@ class Project {
     required this.userId,
     required this.createdAt,
     required this.updatedAt,
-    required this.isCompleted,
-    this.completedAt,
   });
 }
 

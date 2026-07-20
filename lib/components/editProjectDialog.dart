@@ -15,7 +15,6 @@ class EditProjectDialog extends StatefulWidget {
 
 class _EditProjectDialogState extends State<EditProjectDialog> {
   late final TextEditingController _nameController;
-  late bool _isCompleted;
 
   String? _errorMessage;
   bool _isSending = false;
@@ -24,7 +23,6 @@ class _EditProjectDialogState extends State<EditProjectDialog> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.project.name);
-    _isCompleted = widget.project.isCompleted;
   }
 
   @override
@@ -59,8 +57,6 @@ class _EditProjectDialogState extends State<EditProjectDialog> {
         userId: widget.project.userId,
         createdAt: widget.project.createdAt,
         updatedAt: widget.project.updatedAt,
-        isCompleted: _isCompleted,
-        completedAt: widget.project.completedAt,
       );
 
       final isSuccess = await apiService.updateProject(updated);
@@ -109,19 +105,6 @@ class _EditProjectDialogState extends State<EditProjectDialog> {
               enabled: !_isSending,
               decoration: const InputDecoration(labelText: 'Project Name'),
               onSubmitted: (_) => _save(),
-            ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Completed'),
-              value: _isCompleted,
-              onChanged: _isSending
-                  ? null
-                  : (value) {
-                      setState(() {
-                        _isCompleted = value;
-                      });
-                    },
             ),
 
             if (_errorMessage != null) ...[

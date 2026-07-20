@@ -89,12 +89,8 @@ class APIService {
 
     final body = {
       'name': name,
-      "isCompleted": false,
       "userId": _authData!.record.id,
-      "completedAt": null,
     };
-
-    // print('user id: ${_authData!.record.id}');
 
     try {
       final response = await _pb!
@@ -132,19 +128,56 @@ class APIService {
       final response = await _pb!
           .collection('tasks')
           .create(body: body, files: []);
-      return response.id.isNotEmpty ? true : false;
+      final created = response.id.isNotEmpty;
+      // Best-effort: bump the parent project's `updatedAt` so the project
+      // page's "newest first" ordering surfaces the project that just got a
+      // new task. PocketBase autodate only fires on writes to the projects
+      // record itself, so this needs an explicit update. A failure here is
+      // logged and swallowed — the task was still created successfully.
+      if (created) {
+        await _bumpProjectUpdatedAt(projectId);
+      }
+      return created;
     } catch (e) {
       print('Error when creating task: $e');
       return false;
     }
   }
 
+  /// Re-writes a project record so PocketBase's autodate refreshes its
+  /// `updatedAt`. The name is fetched first (we don't have it here) and
+  /// re-sent unchanged so no field is clobbered. Any failure is logged and
+  /// swallowed; callers use this purely for the ordering side effect.
+  Future<void> _bumpProjectUpdatedAt(String projectId) async {
+    if (_pb == null) {
+      await connectDB();
+    }
+    try {
+      final record = await _pb!.collection('projects').getOne(projectId);
+      final name = record.toJson()['name'] as String?;
+      await _pb!.collection('projects').update(
+            projectId,
+            body: {'name': name},
+            files: [],
+          );
+    } catch (e) {
+      print('Error when bumping project updatedAt: $e');
+    }
+  }
+
+  /// Updates a project's editable fields.
+  ///
+  /// Only `name` is sent — the projects collection no longer carries a stored
+  /// completion flag (a project is "completed" iff all its tasks are done,
+  /// which the UI derives from task counts). PocketBase's autodate on
+  /// `updatedAt` fires automatically on every write, so a rename also moves
+  /// the project back to the top of the "by updatedAt" ordering.
   Future<bool> updateProject(Project project) async {
     if (_pb == null) {
       await connectDB();
     }
 
-    final body = {'name': project.name, 'isCompleted': project.isCompleted};
+    final body = {'name': project.name};
 
     try {
       final response = await _pb!
@@ -280,6 +313,11 @@ class APIService {
 
     await _copySteps(original.id, newRootId);
     await _duplicateChildren(original.id, newRootId);
+
+    // A duplicate is a user-initiated creation, so bump the project's
+    // `updatedAt` once (not per descendant) to surface the project at the
+    // top of the project page's ordering.
+    await _bumpProjectUpdatedAt(original.projectId);
 
     return newRootId;
   }

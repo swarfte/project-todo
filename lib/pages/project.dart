@@ -51,6 +51,20 @@ class _HomePageState extends State<HomePage> {
           .map((r) => ProjectAdaptor.fromJson(r.toJson()))
           .toList();
 
+      // Order projects for display:
+      //   1. Incomplete projects first; completed projects last. A project is
+      //      "completed" iff it has at least one task and all of them are done
+      //      (derived from task counts — there's no stored flag anymore).
+      //   2. Within each group, newest `updatedAt` first, so the project the
+      //      user (or the app, via a task-create bump) most recently touched
+      //      sits on top.
+      projects.sort((a, b) {
+        final aDone = _isProjectCompleted(counts[a.id]);
+        final bDone = _isProjectCompleted(counts[b.id]);
+        if (aDone != bDone) return aDone ? 1 : -1;
+        return b.updatedAt.compareTo(a.updatedAt);
+      });
+
       if (!mounted) return;
 
       setState(() {
@@ -167,6 +181,14 @@ class _HomePageState extends State<HomePage> {
     return '${monthNames[date.month - 1]} ${date.day}, ${date.year}';
   }
 
+  /// A project is "completed" iff it has at least one task and all of its
+  /// tasks are done. A project with no tasks is treated as incomplete. This
+  /// replaces the old stored `isCompleted` flag, which no longer exists.
+  bool _isProjectCompleted(({int total, int completed})? counts) {
+    if (counts == null || counts.total == 0) return false;
+    return counts.completed == counts.total;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -264,7 +286,6 @@ class _HomePageState extends State<HomePage> {
           return Card(
             child: ListTile(
               leading: _ProjectProgressIndicator(
-                isCompleted: project.isCompleted,
                 completed: completedTasks,
                 total: totalTasks,
               ),
@@ -290,7 +311,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Created ${_formatDate(project.createdAt)}',
+                    'Updated ${_formatDate(project.updatedAt)}',
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
                 ],
@@ -361,18 +382,16 @@ class _HomePageState extends State<HomePage> {
 
 /// A circular progress ring that doubles as the project row's leading icon.
 ///
-/// - Fully completed project (or all tasks done): a green check.
+/// - Fully completed project (all tasks done): a green check.
 /// - Project with tasks: a ring filled to `completed / total`, with the
 ///   remaining count drawn in the centre.
 /// - Project with no tasks yet: an empty folder outline.
 class _ProjectProgressIndicator extends StatelessWidget {
   const _ProjectProgressIndicator({
-    required this.isCompleted,
     required this.completed,
     required this.total,
   });
 
-  final bool isCompleted;
   final int completed;
   final int total;
 
@@ -382,7 +401,7 @@ class _ProjectProgressIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Fully done: show a check, no ring math needed.
-    if (isCompleted || (total > 0 && completed == total)) {
+    if (total > 0 && completed == total) {
       return Container(
         width: _size,
         height: _size,
