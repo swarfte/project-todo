@@ -69,16 +69,23 @@ class ChainTimeline extends StatelessWidget {
     super.key,
     required this.nodes,
     required this.formatDate,
+    required this.stepCounts,
     required this.onToggleComplete,
     required this.onEdit,
     required this.onDelete,
     required this.onAddSubtask,
     required this.onToggleFold,
     required this.onOpen,
+    required this.onDuplicate,
   });
 
   final List<FlatTaskNode> nodes;
   final String Function(DateTime date) formatDate;
+
+  /// Step counts keyed by task id. Tasks that don't appear in this map have
+  /// no steps and won't render a progress line.
+  final Map<String, ({int total, int completed})> stepCounts;
+
   final void Function(Task task) onToggleComplete;
   final void Function(Task task) onEdit;
   final void Function(Task task) onDelete;
@@ -88,6 +95,10 @@ class ChainTimeline extends StatelessWidget {
   /// Opens the task (e.g. navigates into its step page). Triggered by
   /// tapping the task title.
   final void Function(Task task) onOpen;
+
+  /// Deep-duplicates the task (and its subtasks/steps). Triggered from the
+  /// row's actions menu.
+  final void Function(Task task) onDuplicate;
 
   @override
   Widget build(BuildContext context) {
@@ -105,12 +116,14 @@ class ChainTimeline extends StatelessWidget {
                 TreeRow(
                   node: node,
                   formatDate: formatDate,
+                  stepCounts: stepCounts,
                   onToggleComplete: onToggleComplete,
                   onEdit: onEdit,
                   onDelete: onDelete,
                   onAddSubtask: onAddSubtask,
                   onToggleFold: onToggleFold,
                   onOpen: onOpen,
+                  onDuplicate: onDuplicate,
                 ),
             ],
           ),
@@ -127,22 +140,29 @@ class TreeRow extends StatelessWidget {
     super.key,
     required this.node,
     required this.formatDate,
+    required this.stepCounts,
     required this.onToggleComplete,
     required this.onEdit,
     required this.onDelete,
     required this.onAddSubtask,
     required this.onToggleFold,
     required this.onOpen,
+    required this.onDuplicate,
   });
 
   final FlatTaskNode node;
   final String Function(DateTime date) formatDate;
+
+  /// Step counts keyed by task id (see `ChainTimeline.stepCounts`).
+  final Map<String, ({int total, int completed})> stepCounts;
+
   final void Function(Task task) onToggleComplete;
   final void Function(Task task) onEdit;
   final void Function(Task task) onDelete;
   final void Function(Task task) onAddSubtask;
   final void Function(Task task) onToggleFold;
   final void Function(Task task) onOpen;
+  final void Function(Task task) onDuplicate;
 
   static const double cellWidth = 30;
   static const double badgeSize = 26;
@@ -247,6 +267,18 @@ class TreeRow extends StatelessWidget {
                               color: subtitleColor,
                             ),
                           ),
+                          // Step progress. Only shown for tasks that have at
+                          // least one step — a leaf with no steps renders no
+                          // extra line. Mirrors StepPage's header styling:
+                          // green when every step is done, amber otherwise.
+                          if (stepCounts.containsKey(task.id)) ...[
+                            const SizedBox(height: 4),
+                            _StepProgressLine(
+                              completed:
+                                  stepCounts[task.id]!.completed,
+                              total: stepCounts[task.id]!.total,
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -286,6 +318,9 @@ class TreeRow extends StatelessWidget {
                         case 'edit':
                           onEdit(task);
                           break;
+                        case 'duplicate':
+                          onDuplicate(task);
+                          break;
                         case 'delete':
                           onDelete(task);
                           break;
@@ -298,6 +333,15 @@ class TreeRow extends StatelessWidget {
                           child: ListTile(
                             leading: Icon(Icons.edit_outlined),
                             title: Text('Edit'),
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                          ),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'duplicate',
+                          child: ListTile(
+                            leading: Icon(Icons.copy_outlined),
+                            title: Text('Duplicate'),
                             contentPadding: EdgeInsets.zero,
                             dense: true,
                           ),
@@ -350,6 +394,38 @@ class _NodeBadge extends StatelessWidget {
       child: isCompleted
           ? const Icon(Icons.check, size: 16, color: Colors.white)
           : null,
+    );
+  }
+}
+
+/// A compact step-progress readout rendered under a task's subtitle. Shows
+/// "`completed / total steps`" with a checklist icon, colored green when all
+/// steps are done and amber otherwise. Mirrors `StepPage`'s header styling so
+/// the two views read consistently.
+///
+/// Only rendered for tasks that actually have steps; a leaf task shows
+/// nothing (the caller decides by looking the task up in `stepCounts`).
+class _StepProgressLine extends StatelessWidget {
+  const _StepProgressLine({required this.completed, required this.total});
+
+  final int completed;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDone = completed == total && total > 0;
+    final color = isDone ? Colors.green[700]! : Colors.amber[800]!;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.checklist_rtl, size: 14, color: color),
+        const SizedBox(width: 4),
+        Text(
+          '$completed / $total steps',
+          style: TextStyle(fontSize: 12, color: color),
+        ),
+      ],
     );
   }
 }
