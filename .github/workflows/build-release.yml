@@ -5,19 +5,29 @@ on:
     branches:
       - main
 
-  # 方便在 GitHub Actions 頁面手動執行
+  # 允許在 GitHub Actions 頁面手動執行
   workflow_dispatch:
 
+# 建立 Git tag、GitHub Release 和上傳 Release assets 所需的權限
 permissions:
   contents: write
+
+# 避免同一分支同時執行多個發佈流程
+concurrency:
+  group: flutter-release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   APP_NAME: ProjectTodo
 
-  # 必須與 build/windows/x64/runner/Release 內的主程式名稱一致
+  # 必須與以下目錄內的主程式名稱一致：
+  # build/windows/x64/runner/Release/
   APP_EXE_NAME: project_todo.exe
 
 jobs:
+  # ============================================================
+  # Android
+  # ============================================================
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
@@ -47,18 +57,40 @@ jobs:
       - name: Analyze project
         run: flutter analyze
 
+      # 專案具備可正常執行的 tests 後，可取消下面兩行的註解。
       # - name: Run tests
       #   run: flutter test
 
       - name: Build release APK
         run: flutter build apk --release
 
-      - name: Rename APK
+      - name: Prepare Android release file
+        shell: bash
         run: |
-          mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk \
-             dist/${APP_NAME}-Android.apk
+          set -euo pipefail
 
+          SOURCE_APK="build/app/outputs/flutter-apk/app-release.apk"
+          TARGET_DIRECTORY="dist"
+          TARGET_APK="${TARGET_DIRECTORY}/${APP_NAME}-Android.apk"
+
+          if [ ! -f "$SOURCE_APK" ]; then
+            echo "::error::找不到 Android APK：$SOURCE_APK"
+            exit 1
+          fi
+
+          mkdir -p "$TARGET_DIRECTORY"
+          cp "$SOURCE_APK" "$TARGET_APK"
+
+          if [ ! -s "$TARGET_APK" ]; then
+            echo "::error::Android APK 不存在或檔案大小為 0：$TARGET_APK"
+            exit 1
+          fi
+
+          echo "Android APK 已準備完成："
+          ls -lh "$TARGET_APK"
+
+      # Artifact 用於將 APK 傳送到 create-release job。
+      # 它不是最終的 GitHub Release。
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
@@ -66,7 +98,11 @@ jobs:
           path: dist/${{ env.APP_NAME }}-Android.apk
           if-no-files-found: error
           retention-days: 7
+          compression-level: 0
 
+  # ============================================================
+  # Windows
+  # ============================================================
   build-windows:
     name: Build Windows Installer
     runs-on: windows-latest
@@ -93,6 +129,7 @@ jobs:
       - name: Analyze project
         run: flutter analyze
 
+      # 專案具備可正常執行的 tests 後，可取消下面兩行的註解。
       # - name: Run tests
       #   run: flutter test
 
@@ -102,73 +139,204 @@ jobs:
       - name: Verify Windows executable
         shell: pwsh
         run: |
-          $exePath = "build/windows/x64/runner/Release/${{ env.APP_EXE_NAME }}"
+          $buildDirectory = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "build\windows\x64\runner\Release"
 
-          if (-not (Test-Path $exePath)) {
-            Write-Host "找不到 Windows 主程式：$exePath"
-            Write-Host "Release 目錄內容："
-            Get-ChildItem "build/windows/x64/runner/Release" -Recurse
-            exit 1
+          $exePath = Join-Path `
+            $buildDirectory `
+            "${{ env.APP_EXE_NAME }}"
+
+          Write-Host "Windows build directory: $buildDirectory"
+          Write-Host "Expected executable: $exePath"
+
+          if (-not (Test-Path -LiteralPath $buildDirectory)) {
+            throw "找不到 Windows build 目錄：$buildDirectory"
+          }
+
+          Write-Host "Windows build 目錄內容："
+
+          Get-ChildItem `
+            -LiteralPath $buildDirectory `
+            -Recurse |
+            Select-Object FullName, Length
+
+          if (-not (Test-Path -LiteralPath $exePath)) {
+            throw "找不到 Windows 主程式：$exePath"
+          }
+
+          $exeFile = Get-Item -LiteralPath $exePath
+
+          if ($exeFile.Length -le 0) {
+            throw "Windows 主程式檔案大小為 0：$exePath"
           }
 
           Write-Host "找到 Windows 主程式：$exePath"
+          Write-Host "檔案大小：$($exeFile.Length) bytes"
 
       - name: Install Inno Setup
         shell: pwsh
-        run: choco install innosetup --yes --no-progress
+        run: |
+          choco install innosetup --yes --no-progress
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup 安裝失敗，退出碼：$LASTEXITCODE"
+          }
+
+      - name: Locate Inno Setup compiler
+        id: inno
+        shell: pwsh
+        run: |
+          $possiblePaths = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          )
+
+          $iscc = $possiblePaths |
+            Where-Object {
+              Test-Path -LiteralPath $_
+            } |
+            Select-Object -First 1
+
+          if (-not $iscc) {
+            Write-Host "已檢查以下位置："
+
+            foreach ($path in $possiblePaths) {
+              Write-Host "  $path"
+            }
+
+            throw "找不到 Inno Setup Compiler：ISCC.exe"
+          }
+
+          "path=$iscc" >> $env:GITHUB_OUTPUT
+
+          Write-Host "Inno Setup Compiler：$iscc"
 
       - name: Read app version
         id: app-version
         shell: pwsh
         run: |
-          $versionLine = Get-Content pubspec.yaml |
-            Where-Object { $_ -match '^version:\s*' } |
+          $versionLine = Get-Content -LiteralPath "pubspec.yaml" |
+            Where-Object {
+              $_ -match '^version:\s*'
+            } |
             Select-Object -First 1
 
           if (-not $versionLine) {
             throw "未能從 pubspec.yaml 找到 version"
           }
 
-          $fullVersion = ($versionLine -replace '^version:\s*', '').Trim()
-          $version = ($fullVersion -split '\+')[0]
+          $fullVersion = (
+            $versionLine -replace '^version:\s*', ''
+          ).Trim()
+
+          # 例如 1.0.0+1 會轉成 1.0.0 給 Inno Setup 使用
+          $version = ($fullVersion -split '\+')[0].Trim()
+
+          if (:IsNullOrWhiteSpace($version)) {
+            throw "pubspec.yaml 的 version 無效：$fullVersion"
+          }
 
           "version=$version" >> $env:GITHUB_OUTPUT
-          Write-Host "App version: $version"
+
+          Write-Host "Flutter application version：$fullVersion"
+          Write-Host "Windows installer version：$version"
 
       - name: Build Windows installer
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $iscc = "${{ steps.inno.outputs.path }}"
 
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          $buildDirectory = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "build\windows\x64\runner\Release"
 
-          if (-not (Test-Path $iscc)) {
+          $distDirectory = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "dist"
+
+          $installerScript = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "windows\installer.iss"
+
+          if (-not (Test-Path -LiteralPath $iscc)) {
             throw "找不到 Inno Setup Compiler：$iscc"
           }
 
-          & $iscc `
-            "/DMyAppName=${{ env.APP_NAME }}" `
-            "/DMyAppExeName=${{ env.APP_EXE_NAME }}" `
-            "/DMyAppVersion=${{ steps.app-version.outputs.version }}" `
-            "/DBuildDir=$env:GITHUB_WORKSPACE\build\windows\x64\runner\Release" `
-            "/DOutputDir=$env:GITHUB_WORKSPACE\dist" `
-            "$env:GITHUB_WORKSPACE\windows\installer.iss"
+          if (-not (Test-Path -LiteralPath $buildDirectory)) {
+            throw "找不到 Windows build 目錄：$buildDirectory"
+          }
+
+          if (-not (Test-Path -LiteralPath $installerScript)) {
+            throw "找不到 Inno Setup 設定檔：$installerScript"
+          }
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path $distDirectory |
+            Out-Null
+
+          Write-Host "開始建立 Windows 安裝程式"
+          Write-Host "App name：${{ env.APP_NAME }}"
+          Write-Host "EXE name：${{ env.APP_EXE_NAME }}"
+          Write-Host "Version：${{ steps.app-version.outputs.version }}"
+          Write-Host "Build directory：$buildDirectory"
+          Write-Host "Output directory：$distDirectory"
+          Write-Host "Installer script：$installerScript"
+
+          $arguments = @(
+            "/DMyAppName=${{ env.APP_NAME }}"
+            "/DMyAppExeName=${{ env.APP_EXE_NAME }}"
+            "/DMyAppVersion=${{ steps.app-version.outputs.version }}"
+            "/DBuildDir=$buildDirectory"
+            "/DOutputDir=$distDirectory"
+            $installerScript
+          )
+
+          & $iscc @arguments
 
           if ($LASTEXITCODE -ne 0) {
-            throw "Inno Setup 建立安裝程式失敗"
+            throw "Inno Setup 建立安裝程式失敗，退出碼：$LASTEXITCODE"
           }
 
-      - name: Verify installer
+      - name: Verify Windows installer
         shell: pwsh
         run: |
-          Get-ChildItem dist
+          $distDirectory = Join-Path `
+            $env:GITHUB_WORKSPACE `
+            "dist"
 
-          $installer = "dist/${{ env.APP_NAME }}-Windows-Setup.exe"
+          $installerPath = Join-Path `
+            $distDirectory `
+            "${{ env.APP_NAME }}-Windows-Setup.exe"
 
-          if (-not (Test-Path $installer)) {
-            throw "找不到 Windows 安裝程式：$installer"
+          if (-not (Test-Path -LiteralPath $distDirectory)) {
+            throw "找不到 dist 目錄：$distDirectory"
           }
 
+          Write-Host "dist 目錄內容："
+
+          Get-ChildItem `
+            -LiteralPath $distDirectory `
+            -Recurse |
+            Select-Object FullName, Length
+
+          if (-not (Test-Path -LiteralPath $installerPath)) {
+            throw "找不到 Windows 安裝程式：$installerPath"
+          }
+
+          $installer = Get-Item -LiteralPath $installerPath
+
+          if ($installer.Length -le 0) {
+            throw "Windows 安裝程式檔案大小為 0：$installerPath"
+          }
+
+          Write-Host "Windows 安裝程式建立成功"
+          Write-Host "檔案：$($installer.FullName)"
+          Write-Host "大小：$($installer.Length) bytes"
+
+      # Artifact 用於將 Windows installer 傳送到 create-release job。
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
@@ -176,7 +344,12 @@ jobs:
           path: dist/${{ env.APP_NAME }}-Windows-Setup.exe
           if-no-files-found: error
           retention-days: 7
+          compression-level: 0
 
+  # ============================================================
+  # GitHub Release
+  # Android 和 Windows 都成功後才執行
+  # ============================================================
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
@@ -185,39 +358,121 @@ jobs:
       - build-android
       - build-windows
 
+    permissions:
+      contents: write
+
     steps:
       - name: Download Android artifact
         uses: actions/download-artifact@v4
         with:
           name: android-release
-          path: release-files
+          path: release-files/android
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
           name: windows-release
-          path: release-files
+          path: release-files/windows
 
-      - name: List release files
-        run: find release-files -maxdepth 2 -type f -print
+      - name: Verify release files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK_FILE="release-files/android/${APP_NAME}-Android.apk"
+          WINDOWS_FILE="release-files/windows/${APP_NAME}-Windows-Setup.exe"
+
+          echo "已下載的 release 檔案："
+          find release-files -maxdepth 3 -type f -print
+
+          if [ ! -f "$APK_FILE" ]; then
+            echo "::error::找不到 Android APK：$APK_FILE"
+            exit 1
+          fi
+
+          if [ ! -s "$APK_FILE" ]; then
+            echo "::error::Android APK 檔案大小為 0：$APK_FILE"
+            exit 1
+          fi
+
+          if [ ! -f "$WINDOWS_FILE" ]; then
+            echo "::error::找不到 Windows installer：$WINDOWS_FILE"
+            exit 1
+          fi
+
+          if [ ! -s "$WINDOWS_FILE" ]; then
+            echo "::error::Windows installer 檔案大小為 0：$WINDOWS_FILE"
+            exit 1
+          fi
+
+          echo "準備發佈以下檔案："
+          ls -lh "$APK_FILE" "$WINDOWS_FILE"
 
       - name: Generate release timestamp
         id: release-info
         shell: bash
         run: |
-          RELEASE_TAG="$(TZ=Asia/Macau date '+%Y-%m-%d-%H-%M-%S')"
-          echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
-          echo "Release tag: ${RELEASE_TAG}"
+          set -euo pipefail
 
-      - name: Create GitHub Release
+          # GitHub Linux runner 預設使用 UTC。
+          # 明確指定 Asia/Macau，產生澳門時間。
+          RELEASE_TAG="$(TZ=Asia/Macau date '+%Y-%m-%d-%H-%M-%S')"
+
+          echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Release tag：${RELEASE_TAG}"
+
+      - name: Create GitHub Release and upload installers
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release-info.outputs.tag }}
-        shell: bash
         run: |
+          set -euo pipefail
+
+          APK_FILE="release-files/android/${APP_NAME}-Android.apk"
+          WINDOWS_FILE="release-files/windows/${APP_NAME}-Windows-Setup.exe"
+
+          echo "正在建立 GitHub Release：$RELEASE_TAG"
+
           gh release create "$RELEASE_TAG" \
-            release-files/* \
+            "$APK_FILE#${APP_NAME} Android APK" \
+            "$WINDOWS_FILE#${APP_NAME} Windows Installer" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "$RELEASE_TAG" \
-            --generate-notes
+            --generate-notes \
+            --latest
+
+          echo "GitHub Release 建立成功。"
+
+      - name: Verify published GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release-info.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          echo "檢查已建立的 Release："
+
+          gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY"
+
+          echo "檢查 Release assets："
+
+          ASSET_NAMES="$(
+            gh release view "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --json assets \
+              --jq '.assets[].name'
+          )"
+
+          echo "$ASSET_NAMES"
+
+          echo "$ASSET_NAMES" |
+            grep -Fx "${APP_NAME}-Android.apk"
+
+          echo "$ASSET_NAMES" |
+            grep -Fx "${APP_NAME}-Windows-Setup.exe"
+
+          echo "兩個安裝檔均已成功加入 GitHub Release。"
