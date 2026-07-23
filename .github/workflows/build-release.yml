@@ -24,10 +24,13 @@ env:
   # build/windows/x64/runner/Release/
   APP_EXE_NAME: project_todo.exe
 
+  # macOS DMG 安裝檔名稱。
+  MACOS_DMG_NAME: ProjectTodo-macOS.dmg
+
 jobs:
   # ============================================================
   # Version
-  # 統一產生 Android、Windows 和 GitHub Release 使用的版本資料。
+  # 統一產生 Android、Windows、macOS 和 GitHub Release 使用的版本資料。
   # ============================================================
   prepare-version:
     name: Prepare Application Version
@@ -57,7 +60,7 @@ jobs:
           # 例如：v2026.7.23-build.148-attempt.1
           RELEASE_TAG="v${APP_VERSION}-build.${BUILD_NUMBER}-attempt.${GITHUB_RUN_ATTEMPT}"
 
-          RELEASE_TITLE="${APP_NAME} ${APP_VERSION} (Build ${BUILD_NUMBER})"
+          RELEASE_TITLE="${APP_VERSION} (Build ${BUILD_NUMBER})"
 
           if [[ ! "$APP_VERSION" =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
             echo "::error::產生的版本格式無效：$APP_VERSION"
@@ -420,8 +423,333 @@ jobs:
           compression-level: 0
 
   # ============================================================
+  # macOS
+  # 僅支援 Apple Silicon，即 M1 或更新機型。
+  # 建立包含 .app 和 Applications 捷徑的 DMG。
+  # ============================================================
+  build-macos:
+    name: Build macOS DMG
+    runs-on: macos-15
+
+    needs:
+      - prepare-version
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show build environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          flutter --version
+          xcodebuild -version
+          sw_vers
+
+          echo "Runner CPU architecture：$(uname -m)"
+
+          if [ "$(uname -m)" != "arm64" ]; then
+            echo "::error::目前 runner 不是 Apple Silicon ARM64 runner。"
+            exit 1
+          fi
+
+      - name: Show build information
+        shell: bash
+        run: |
+          echo "Application version: ${{ needs.prepare-version.outputs.app-version }}"
+          echo "Build number: ${{ needs.prepare-version.outputs.build-number }}"
+
+      - name: Enable macOS desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter config --enable-macos-desktop
+
+      - name: Verify macOS project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -d "macos" ]; then
+            echo "::error::找不到 macos 目錄。請先在本機執行：flutter create --platforms=macos ."
+            exit 1
+          fi
+
+          if [ ! -f "macos/Runner.xcworkspace/contents.xcworkspacedata" ]; then
+            echo "::error::找不到 macos/Runner.xcworkspace"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get
+
+      - name: Analyze project
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter analyze
+
+      # 專案具備可正常執行的 tests 後，可取消下面兩行的註解。
+      # - name: Run tests
+      #   run: flutter test
+
+      - name: Build macOS release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          flutter build macos \
+            --release \
+            --build-name="${{ needs.prepare-version.outputs.app-version }}" \
+            --build-number="${{ needs.prepare-version.outputs.build-number }}"
+
+      - name: Locate and verify macOS application
+        id: macos-app
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUILD_DIRECTORY="build/macos/Build/Products/Release"
+
+          if [ ! -d "$BUILD_DIRECTORY" ]; then
+            echo "::error::找不到 macOS build 目錄：$BUILD_DIRECTORY"
+            exit 1
+          fi
+
+          echo "macOS build 目錄內容："
+          find "$BUILD_DIRECTORY" -maxdepth 2 -print
+
+          APP_COUNT="$(
+            find "$BUILD_DIRECTORY" \
+              -maxdepth 1 \
+              -type d \
+              -name '*.app' |
+            wc -l |
+            tr -d ' '
+          )"
+
+          if [ "$APP_COUNT" -eq 0 ]; then
+            echo "::error::找不到 macOS .app bundle"
+            exit 1
+          fi
+
+          if [ "$APP_COUNT" -gt 1 ]; then
+            echo "::error::找到多個 macOS .app bundle，無法確定要發佈哪一個："
+
+            find "$BUILD_DIRECTORY" \
+              -maxdepth 1 \
+              -type d \
+              -name '*.app' \
+              -print
+
+            exit 1
+          fi
+
+          APP_PATH="$(
+            find "$BUILD_DIRECTORY" \
+              -maxdepth 1 \
+              -type d \
+              -name '*.app' \
+              -print |
+            head -n 1
+          )"
+
+          APP_BUNDLE_NAME="$(basename "$APP_PATH")"
+          APP_DISPLAY_NAME="${APP_BUNDLE_NAME%.app}"
+          INFO_PLIST="${APP_PATH}/Contents/Info.plist"
+
+          if [ ! -f "$INFO_PLIST" ]; then
+            echo "::error::找不到 Info.plist：$INFO_PLIST"
+            exit 1
+          fi
+
+          EXECUTABLE_NAME="$(
+            /usr/libexec/PlistBuddy \
+              -c 'Print :CFBundleExecutable' \
+              "$INFO_PLIST"
+          )"
+
+          EXECUTABLE_PATH="${APP_PATH}/Contents/MacOS/${EXECUTABLE_NAME}"
+
+          if [ ! -f "$EXECUTABLE_PATH" ]; then
+            echo "::error::找不到 macOS 主程式：$EXECUTABLE_PATH"
+            exit 1
+          fi
+
+          if [ ! -s "$EXECUTABLE_PATH" ]; then
+            echo "::error::macOS 主程式檔案大小為 0：$EXECUTABLE_PATH"
+            exit 1
+          fi
+
+          echo "找到 macOS app：$APP_PATH"
+          echo "Bundle name：$APP_BUNDLE_NAME"
+          echo "Executable：$EXECUTABLE_PATH"
+
+          EXECUTABLE_ARCHITECTURES="$(lipo -archs "$EXECUTABLE_PATH")"
+
+          echo "主程式架構：$EXECUTABLE_ARCHITECTURES"
+
+          if ! echo "$EXECUTABLE_ARCHITECTURES" |
+            tr ' ' '\n' |
+            grep -Fx "arm64"
+          then
+            echo "::error::macOS 主程式不包含 Apple Silicon arm64 架構。"
+            exit 1
+          fi
+
+          echo "驗證 app bundle 程式碼簽署結構："
+
+          codesign --verify \
+            --deep \
+            --strict \
+            --verbose=2 \
+            "$APP_PATH"
+
+          echo "app-path=$APP_PATH" >> "$GITHUB_OUTPUT"
+          echo "app-bundle-name=$APP_BUNDLE_NAME" >> "$GITHUB_OUTPUT"
+          echo "app-display-name=$APP_DISPLAY_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Create macOS DMG
+        shell: bash
+        env:
+          APP_PATH: ${{ steps.macos-app.outputs.app-path }}
+          APP_BUNDLE_NAME: ${{ steps.macos-app.outputs.app-bundle-name }}
+          APP_DISPLAY_NAME: ${{ steps.macos-app.outputs.app-display-name }}
+          APP_VERSION: ${{ needs.prepare-version.outputs.app-version }}
+        run: |
+          set -euo pipefail
+
+          DIST_DIRECTORY="$GITHUB_WORKSPACE/dist"
+          DMG_STAGE_DIRECTORY="$RUNNER_TEMP/dmg-stage"
+          DMG_PATH="${DIST_DIRECTORY}/${MACOS_DMG_NAME}"
+          VOLUME_NAME="${APP_DISPLAY_NAME} ${APP_VERSION}"
+
+          rm -rf "$DMG_STAGE_DIRECTORY"
+          mkdir -p "$DMG_STAGE_DIRECTORY"
+          mkdir -p "$DIST_DIRECTORY"
+
+          echo "複製 macOS app bundle："
+          echo "Source：$APP_PATH"
+          echo "Target：${DMG_STAGE_DIRECTORY}/${APP_BUNDLE_NAME}"
+
+          # ditto 用於保留 macOS app bundle 的 metadata、權限和符號連結。
+          ditto \
+            "$APP_PATH" \
+            "${DMG_STAGE_DIRECTORY}/${APP_BUNDLE_NAME}"
+
+          # 使用者打開 DMG 後，可將 app 拖放到 Applications。
+          ln -s \
+            /Applications \
+            "${DMG_STAGE_DIRECTORY}/Applications"
+
+          echo "DMG staging 目錄內容："
+          ls -la "$DMG_STAGE_DIRECTORY"
+
+          rm -f "$DMG_PATH"
+
+          hdiutil create \
+            -volname "$VOLUME_NAME" \
+            -srcfolder "$DMG_STAGE_DIRECTORY" \
+            -ov \
+            -format UDZO \
+            "$DMG_PATH"
+
+          if [ ! -s "$DMG_PATH" ]; then
+            echo "::error::macOS DMG 不存在或檔案大小為 0：$DMG_PATH"
+            exit 1
+          fi
+
+          echo "macOS DMG 建立成功："
+          ls -lh "$DMG_PATH"
+
+      - name: Verify macOS DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DMG_PATH="dist/${MACOS_DMG_NAME}"
+          MOUNT_DIRECTORY="$RUNNER_TEMP/dmg-verify"
+
+          if [ ! -s "$DMG_PATH" ]; then
+            echo "::error::找不到 macOS DMG 或檔案大小為 0：$DMG_PATH"
+            exit 1
+          fi
+
+          echo "驗證 DMG 檔案完整性："
+          hdiutil verify "$DMG_PATH"
+
+          rm -rf "$MOUNT_DIRECTORY"
+          mkdir -p "$MOUNT_DIRECTORY"
+
+          cleanup() {
+            if mount | grep -Fq "$MOUNT_DIRECTORY"; then
+              hdiutil detach "$MOUNT_DIRECTORY" -force >/dev/null 2>&1 || true
+            fi
+          }
+
+          trap cleanup EXIT
+
+          hdiutil attach \
+            "$DMG_PATH" \
+            -nobrowse \
+            -readonly \
+            -mountpoint "$MOUNT_DIRECTORY"
+
+          echo "已掛載 DMG 內容："
+          find "$MOUNT_DIRECTORY" -maxdepth 2 -print
+
+          APP_COUNT="$(
+            find "$MOUNT_DIRECTORY" \
+              -maxdepth 1 \
+              -type d \
+              -name '*.app' |
+            wc -l |
+            tr -d ' '
+          )"
+
+          if [ "$APP_COUNT" -ne 1 ]; then
+            echo "::error::DMG 內應包含一個 .app，實際找到：$APP_COUNT"
+            exit 1
+          fi
+
+          if [ ! -L "$MOUNT_DIRECTORY/Applications" ]; then
+            echo "::error::DMG 內缺少 Applications 捷徑"
+            exit 1
+          fi
+
+          APPLICATIONS_TARGET="$(
+            readlink "$MOUNT_DIRECTORY/Applications"
+          )"
+
+          if [ "$APPLICATIONS_TARGET" != "/Applications" ]; then
+            echo "::error::Applications 捷徑指向錯誤：$APPLICATIONS_TARGET"
+            exit 1
+          fi
+
+          echo "macOS DMG 驗證成功。"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: dist/${{ env.MACOS_DMG_NAME }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  # ============================================================
   # GitHub Release
-  # Android 和 Windows 都成功後才執行。
+  # Android、Windows 和 macOS 都成功後才執行。
   # ============================================================
   create-release:
     name: Create GitHub Release
@@ -431,6 +759,7 @@ jobs:
       - prepare-version
       - build-android
       - build-windows
+      - build-macos
 
     permissions:
       contents: write
@@ -448,6 +777,12 @@ jobs:
           name: windows-release
           path: release-files/windows
 
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-release
+          path: release-files/macos
+
       - name: Verify release files
         shell: bash
         run: |
@@ -455,6 +790,7 @@ jobs:
 
           APK_FILE="release-files/android/${APP_NAME}-Android.apk"
           WINDOWS_FILE="release-files/windows/${APP_NAME}-Windows-Setup.exe"
+          MACOS_FILE="release-files/macos/${MACOS_DMG_NAME}"
 
           echo "已下載的 release 檔案："
           find release-files -maxdepth 3 -type f -print
@@ -479,8 +815,22 @@ jobs:
             exit 1
           fi
 
+          if [ ! -f "$MACOS_FILE" ]; then
+            echo "::error::找不到 macOS DMG：$MACOS_FILE"
+            exit 1
+          fi
+
+          if [ ! -s "$MACOS_FILE" ]; then
+            echo "::error::macOS DMG 檔案大小為 0：$MACOS_FILE"
+            exit 1
+          fi
+
           echo "準備發佈以下檔案："
-          ls -lh "$APK_FILE" "$WINDOWS_FILE"
+
+          ls -lh \
+            "$APK_FILE" \
+            "$WINDOWS_FILE" \
+            "$MACOS_FILE"
 
       - name: Show release information
         shell: bash
@@ -503,12 +853,14 @@ jobs:
 
           APK_FILE="release-files/android/${APP_NAME}-Android.apk"
           WINDOWS_FILE="release-files/windows/${APP_NAME}-Windows-Setup.exe"
+          MACOS_FILE="release-files/macos/${MACOS_DMG_NAME}"
 
           echo "正在建立 GitHub Release：$RELEASE_TAG"
 
           gh release create "$RELEASE_TAG" \
             "$APK_FILE#${APP_NAME} Android APK" \
             "$WINDOWS_FILE#${APP_NAME} Windows Installer" \
+            "$MACOS_FILE#${APP_NAME} macOS Apple Silicon DMG" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "$RELEASE_TITLE" \
@@ -547,4 +899,7 @@ jobs:
           echo "$ASSET_NAMES" |
             grep -Fx "${APP_NAME}-Windows-Setup.exe"
 
-          echo "兩個安裝檔均已成功加入 GitHub Release。"
+          echo "$ASSET_NAMES" |
+            grep -Fx "${MACOS_DMG_NAME}"
+
+          echo "Android、Windows 和 macOS 安裝檔均已成功加入 GitHub Release。"
