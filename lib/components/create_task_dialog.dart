@@ -37,10 +37,18 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
   // The task that comes immediately before the new one. null means the
   // new task is a starting point (no predecessor). Pre-seeded from
   // widget.previousTask when the dialog is opened as a subtask creator.
-  late Task? _selectedPreviousTask = widget.previousTask;
+  // Initialized in initState because `widget` isn't available at field
+  // initializer time; `late final` enforces the one-time assignment.
+  late final Task? _selectedPreviousTask;
 
   // Optional due date. null means the task has no deadline.
   DateTime? _dueDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPreviousTask = widget.previousTask;
+  }
 
   @override
   void dispose() {
@@ -166,7 +174,7 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
               Text(
                 _selectedPreviousTask == null
                     ? 'This task will start a new chain.'
-                    : 'This task will come after "${_selectedPreviousTask!.name}".',
+                    : 'This task will come after "${_selectedPreviousTask.name}".',
                 style: TextStyle(color: Colors.grey[600], fontSize: 13),
               ),
             ] else ...[
