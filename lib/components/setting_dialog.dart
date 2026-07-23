@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:project_todo/preferences.dart';
 import 'package:project_todo/api.dart';
+import 'package:project_todo/components/app_version.dart';
 import 'package:project_todo/components/error_message_box.dart';
 import 'package:project_todo/components/loading_progress_bar.dart';
 import 'package:project_todo/components/success_snackbar.dart';
@@ -156,6 +157,9 @@ class _SettingDialogState extends State<SettingDialog> {
                 message: 'Saving settings and testing connection...',
               ),
             ],
+
+            const SizedBox(height: 16),
+            const Center(child: AppVersionText()),
           ],
         ),
       ),
