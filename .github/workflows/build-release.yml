@@ -57,7 +57,7 @@ jobs:
           # 例如：v2026.7.23-build.148-attempt.1
           RELEASE_TAG="v${APP_VERSION}-build.${BUILD_NUMBER}-attempt.${GITHUB_RUN_ATTEMPT}"
 
-          RELEASE_TITLE="${APP_NAME} ${APP_VERSION} (Build ${BUILD_NUMBER})"
+          RELEASE_TITLE="${APP_VERSION} (Build ${BUILD_NUMBER})"
 
           if [[ ! "$APP_VERSION" =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
             echo "::error::產生的版本格式無效：$APP_VERSION"
