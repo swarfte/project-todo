@@ -5,14 +5,14 @@ on:
     branches:
       - main
 
-  # 允許在 GitHub Actions 頁面手動執行
+  # 允許在 GitHub Actions 頁面手動執行。
   workflow_dispatch:
 
-# 建立 Git tag、GitHub Release 和上傳 Release assets 所需的權限
+# 建立 Git tag、GitHub Release 和上傳 Release assets 所需的權限。
 permissions:
   contents: write
 
-# 避免同一分支同時執行多個發佈流程
+# 避免同一分支同時執行多個發佈流程。
 concurrency:
   group: flutter-release-${{ github.ref }}
   cancel-in-progress: false
@@ -26,11 +26,69 @@ env:
 
 jobs:
   # ============================================================
+  # Version
+  # 統一產生 Android、Windows 和 GitHub Release 使用的版本資料。
+  # ============================================================
+  prepare-version:
+    name: Prepare Application Version
+    runs-on: ubuntu-latest
+
+    outputs:
+      app-version: ${{ steps.version.outputs.app-version }}
+      build-number: ${{ steps.version.outputs.build-number }}
+      release-tag: ${{ steps.version.outputs.release-tag }}
+      release-title: ${{ steps.version.outputs.release-title }}
+
+    steps:
+      - name: Generate application version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # 使用澳門時間產生日期版本。
+          # 例如：2026.7.23
+          APP_VERSION="$(TZ=Asia/Macau date '+%Y.%-m.%-d')"
+
+          # Flutter build number / Android versionCode 必須是整數。
+          BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
+
+          # run_attempt 用於防止重新執行同一個 workflow 時 tag 重複。
+          # 例如：v2026.7.23-build.148-attempt.1
+          RELEASE_TAG="v${APP_VERSION}-build.${BUILD_NUMBER}-attempt.${GITHUB_RUN_ATTEMPT}"
+
+          RELEASE_TITLE="${APP_NAME} ${APP_VERSION} (Build ${BUILD_NUMBER})"
+
+          if [[ ! "$APP_VERSION" =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}$ ]]; then
+            echo "::error::產生的版本格式無效：$APP_VERSION"
+            exit 1
+          fi
+
+          if [[ ! "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "::error::Build number 必須是整數：$BUILD_NUMBER"
+            exit 1
+          fi
+
+          echo "app-version=${APP_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "build-number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "release-tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "release-title=${RELEASE_TITLE}" >> "$GITHUB_OUTPUT"
+
+          echo "Application version: ${APP_VERSION}"
+          echo "Build number: ${BUILD_NUMBER}"
+          echo "Workflow attempt: ${GITHUB_RUN_ATTEMPT}"
+          echo "Release tag: ${RELEASE_TAG}"
+          echo "Release title: ${RELEASE_TITLE}"
+
+  # ============================================================
   # Android
   # ============================================================
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
+
+    needs:
+      - prepare-version
 
     steps:
       - name: Checkout repository
@@ -51,6 +109,12 @@ jobs:
       - name: Show Flutter version
         run: flutter --version
 
+      - name: Show build information
+        shell: bash
+        run: |
+          echo "Application version: ${{ needs.prepare-version.outputs.app-version }}"
+          echo "Build number: ${{ needs.prepare-version.outputs.build-number }}"
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -62,7 +126,14 @@ jobs:
       #   run: flutter test
 
       - name: Build release APK
-        run: flutter build apk --release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          flutter build apk \
+            --release \
+            --build-name="${{ needs.prepare-version.outputs.app-version }}" \
+            --build-number="${{ needs.prepare-version.outputs.build-number }}"
 
       - name: Prepare Android release file
         shell: bash
@@ -107,6 +178,9 @@ jobs:
     name: Build Windows Installer
     runs-on: windows-latest
 
+    needs:
+      - prepare-version
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -119,6 +193,12 @@ jobs:
 
       - name: Show Flutter version
         run: flutter --version
+
+      - name: Show build information
+        shell: pwsh
+        run: |
+          Write-Host "Application version: ${{ needs.prepare-version.outputs.app-version }}"
+          Write-Host "Build number: ${{ needs.prepare-version.outputs.build-number }}"
 
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
@@ -134,11 +214,24 @@ jobs:
       #   run: flutter test
 
       - name: Build Windows release
-        run: flutter build windows --release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          flutter build windows `
+            --release `
+            --build-name="${{ needs.prepare-version.outputs.app-version }}" `
+            --build-number="${{ needs.prepare-version.outputs.build-number }}"
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Flutter Windows build 失敗，退出碼：$LASTEXITCODE"
+          }
 
       - name: Verify Windows executable
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+
           $buildDirectory = Join-Path `
             $env:GITHUB_WORKSPACE `
             "build\windows\x64\runner\Release"
@@ -177,6 +270,8 @@ jobs:
       - name: Install Inno Setup
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+
           choco install innosetup --yes --no-progress
 
           if ($LASTEXITCODE -ne 0) {
@@ -187,6 +282,8 @@ jobs:
         id: inno
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+
           $possiblePaths = @(
             "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
             "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
@@ -212,49 +309,11 @@ jobs:
 
           Write-Host "Inno Setup Compiler：$iscc"
 
-      - name: Read app version
-        id: app-version
+      - name: Build Windows installer
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          $pubspecPath = Join-Path $env:GITHUB_WORKSPACE "pubspec.yaml"
-
-          if (-not (Test-Path -LiteralPath $pubspecPath)) {
-            throw "找不到 pubspec.yaml：$pubspecPath"
-          }
-
-          $versionLine = Get-Content -LiteralPath $pubspecPath |
-            Where-Object { $_ -match '^\s*version\s*:' } |
-            Select-Object -First 1
-
-          if (-not $versionLine) {
-            throw "未能從 pubspec.yaml 找到 version"
-          }
-
-          $fullVersion = ($versionLine -replace '^\s*version\s*:\s*', '').Trim()
-          $fullVersion = $fullVersion.Trim('"').Trim("'")
-
-          # Flutter 版本例如 1.0.0+1：1.0.0 是版本名稱，+1 是 build number。
-          # Inno Setup AppVersion 只使用 1.0.0。
-          $version = ($fullVersion -split '\+', 2)[0].Trim()
-
-          if (-not $version) {
-            throw "pubspec.yaml 的 version 無效：$fullVersion"
-          }
-
-          if (-not $env:GITHUB_OUTPUT) {
-            throw "GitHub Actions 沒有提供 GITHUB_OUTPUT"
-          }
-
-          "version=$version" >> $env:GITHUB_OUTPUT
-
-          Write-Host "Flutter application version：$fullVersion"
-          Write-Host "Windows installer version：$version"
-
-      - name: Build Windows installer
-        shell: pwsh
-        run: |
           $iscc = "${{ steps.inno.outputs.path }}"
 
           $buildDirectory = Join-Path `
@@ -290,7 +349,8 @@ jobs:
           Write-Host "開始建立 Windows 安裝程式"
           Write-Host "App name：${{ env.APP_NAME }}"
           Write-Host "EXE name：${{ env.APP_EXE_NAME }}"
-          Write-Host "Version：${{ steps.app-version.outputs.version }}"
+          Write-Host "Version：${{ needs.prepare-version.outputs.app-version }}"
+          Write-Host "Build number：${{ needs.prepare-version.outputs.build-number }}"
           Write-Host "Build directory：$buildDirectory"
           Write-Host "Output directory：$distDirectory"
           Write-Host "Installer script：$installerScript"
@@ -298,7 +358,8 @@ jobs:
           $arguments = @(
             "/DMyAppName=${{ env.APP_NAME }}"
             "/DMyAppExeName=${{ env.APP_EXE_NAME }}"
-            "/DMyAppVersion=${{ steps.app-version.outputs.version }}"
+            "/DMyAppVersion=${{ needs.prepare-version.outputs.app-version }}"
+            "/DMyAppBuildNumber=${{ needs.prepare-version.outputs.build-number }}"
             "/DBuildDir=$buildDirectory"
             "/DOutputDir=$distDirectory"
             $installerScript
@@ -313,6 +374,8 @@ jobs:
       - name: Verify Windows installer
         shell: pwsh
         run: |
+          $ErrorActionPreference = "Stop"
+
           $distDirectory = Join-Path `
             $env:GITHUB_WORKSPACE `
             "dist"
@@ -358,13 +421,14 @@ jobs:
 
   # ============================================================
   # GitHub Release
-  # Android 和 Windows 都成功後才執行
+  # Android 和 Windows 都成功後才執行。
   # ============================================================
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
 
     needs:
+      - prepare-version
       - build-android
       - build-windows
 
@@ -418,24 +482,22 @@ jobs:
           echo "準備發佈以下檔案："
           ls -lh "$APK_FILE" "$WINDOWS_FILE"
 
-      - name: Generate release timestamp
-        id: release-info
+      - name: Show release information
         shell: bash
         run: |
-          set -euo pipefail
-
-          # GitHub Linux runner 預設使用 UTC。
-          # 明確指定 Asia/Macau，產生澳門時間。
-          RELEASE_TAG="$(TZ=Asia/Macau date '+%Y-%m-%d-%H-%M-%S')"
-
-          echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
-          echo "Release tag：${RELEASE_TAG}"
+          echo "Application version: ${{ needs.prepare-version.outputs.app-version }}"
+          echo "Build number: ${{ needs.prepare-version.outputs.build-number }}"
+          echo "Release tag: ${{ needs.prepare-version.outputs.release-tag }}"
+          echo "Release title: ${{ needs.prepare-version.outputs.release-title }}"
 
       - name: Create GitHub Release and upload installers
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.release-info.outputs.tag }}
+          APP_VERSION: ${{ needs.prepare-version.outputs.app-version }}
+          BUILD_NUMBER: ${{ needs.prepare-version.outputs.build-number }}
+          RELEASE_TAG: ${{ needs.prepare-version.outputs.release-tag }}
+          RELEASE_TITLE: ${{ needs.prepare-version.outputs.release-title }}
         run: |
           set -euo pipefail
 
@@ -449,7 +511,7 @@ jobs:
             "$WINDOWS_FILE#${APP_NAME} Windows Installer" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "$RELEASE_TAG" \
+            --title "$RELEASE_TITLE" \
             --generate-notes \
             --latest
 
@@ -459,7 +521,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.release-info.outputs.tag }}
+          RELEASE_TAG: ${{ needs.prepare-version.outputs.release-tag }}
         run: |
           set -euo pipefail
 
