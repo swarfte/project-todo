@@ -2,6 +2,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:project_todo/preferences.dart';
 import 'package:project_todo/models.dart';
 import 'package:project_todo/adaptor.dart';
+import 'package:project_todo/logger.dart';
 
 class APIService {
   // singleton class
@@ -87,10 +88,7 @@ class APIService {
       await connectDB();
     }
 
-    final body = {
-      'name': name,
-      "userId": _authData!.record.id,
-    };
+    final body = {'name': name, "userId": _authData!.record.id};
 
     try {
       final response = await _pb!
@@ -98,7 +96,7 @@ class APIService {
           .create(body: body, files: []);
       return response.id.isNotEmpty ? true : false;
     } catch (e) {
-      print('Error when creating project: $e');
+      apiLogger.warning('Error when creating project', e);
       return false;
     }
   }
@@ -139,7 +137,7 @@ class APIService {
       }
       return created;
     } catch (e) {
-      print('Error when creating task: $e');
+      apiLogger.warning('Error when creating task', e);
       return false;
     }
   }
@@ -155,13 +153,11 @@ class APIService {
     try {
       final record = await _pb!.collection('projects').getOne(projectId);
       final name = record.toJson()['name'] as String?;
-      await _pb!.collection('projects').update(
-            projectId,
-            body: {'name': name},
-            files: [],
-          );
+      await _pb!
+          .collection('projects')
+          .update(projectId, body: {'name': name}, files: []);
     } catch (e) {
-      print('Error when bumping project updatedAt: $e');
+      apiLogger.warning('Error when bumping project updatedAt', e);
     }
   }
 
@@ -185,7 +181,7 @@ class APIService {
           .update(project.id, body: body, files: []);
       return response.id.isNotEmpty ? true : false;
     } catch (e) {
-      print('Error when updating project: $e');
+      apiLogger.warning('Error when updating project', e);
       return false;
     }
   }
@@ -199,7 +195,7 @@ class APIService {
       await _pb!.collection('projects').delete(projectId);
       return true;
     } catch (e) {
-      print('Error when deleting project: $e');
+      apiLogger.warning('Error when deleting project', e);
       return false;
     }
   }
@@ -263,7 +259,7 @@ class APIService {
           .update(task.id, body: body, files: []);
       return response.id.isNotEmpty ? true : false;
     } catch (e) {
-      print('Error when updating task: $e');
+      apiLogger.warning('Error when updating task', e);
       return false;
     }
   }
@@ -277,7 +273,7 @@ class APIService {
       await _pb!.collection('tasks').delete(taskId);
       return true;
     } catch (e) {
-      print('Error when deleting task: $e');
+      apiLogger.warning('Error when deleting task', e);
       return false;
     }
   }
@@ -324,10 +320,7 @@ class APIService {
 
   /// Recursively duplicates every direct child of [originalId] under
   /// [newParentId], preserving each child's fields and step chain.
-  Future<void> _duplicateChildren(
-    String originalId,
-    String newParentId,
-  ) async {
+  Future<void> _duplicateChildren(String originalId, String newParentId) async {
     final children = await _getDirectChildTasks(originalId);
     for (final child in children) {
       final newChildId = await _createTaskRecord(
@@ -356,11 +349,9 @@ class APIService {
       final records = await _pb!
           .collection('tasks')
           .getFullList(filter: 'previousTaskId="$parentId"');
-      return records
-          .map((r) => TaskAdaptor.fromJson(r.toJson()))
-          .toList();
+      return records.map((r) => TaskAdaptor.fromJson(r.toJson())).toList();
     } catch (e) {
-      print('Error fetching child tasks of $parentId: $e');
+      apiLogger.warning('Error fetching child tasks of $parentId', e);
       return const [];
     }
   }
@@ -370,9 +361,7 @@ class APIService {
   /// `previousStepId` links so the new chain matches the original order.
   Future<void> _copySteps(String originalTaskId, String newTaskId) async {
     final records = await getStepListByTaskId(originalTaskId);
-    final steps = records
-        .map((r) => StepAdaptor.fromJson(r.toJson()))
-        .toList();
+    final steps = records.map((r) => StepAdaptor.fromJson(r.toJson())).toList();
     final ordered = _orderSteps(steps);
 
     String? previousNewStepId;
@@ -421,7 +410,7 @@ class APIService {
           .create(body: body, files: []);
       return response.id.isNotEmpty ? response.id : null;
     } catch (e) {
-      print('Error when creating task record: $e');
+      apiLogger.warning('Error when creating task record', e);
       return null;
     }
   }
@@ -450,7 +439,7 @@ class APIService {
           .create(body: body, files: []);
       return response.id.isNotEmpty ? response.id : null;
     } catch (e) {
-      print('Error when creating step record: $e');
+      apiLogger.warning('Error when creating step record', e);
       return null;
     }
   }
@@ -569,7 +558,7 @@ class APIService {
           .create(body: body, files: []);
       return response.id.isNotEmpty ? true : false;
     } catch (e) {
-      print('Error when creating step: $e');
+      apiLogger.warning('Error when creating step', e);
       return false;
     }
   }
@@ -620,7 +609,7 @@ class APIService {
     if (newStepId == null) {
       // Couldn't locate the new step to relink against. Treat as partial
       // failure: the insert happened, the successor is now a second head.
-      print('insertStep: created step but could not locate it to relink');
+      apiLogger.warning('insertStep: created step but could not locate it to relink');
       return false;
     }
 
@@ -696,7 +685,7 @@ class APIService {
       final record = await _pb!.collection('steps').getOne(stepId);
       return StepAdaptor.fromJson(record.toJson());
     } catch (e) {
-      print('Error when fetching step $stepId: $e');
+      apiLogger.warning('Error when fetching step $stepId', e);
       return null;
     }
   }
@@ -718,7 +707,7 @@ class APIService {
           .update(step.id, body: body, files: []);
       return response.id.isNotEmpty ? true : false;
     } catch (e) {
-      print('Error when updating step: $e');
+      apiLogger.warning('Error when updating step', e);
       return false;
     }
   }
@@ -769,7 +758,7 @@ class APIService {
             );
             final relinkedOk = await updateStep(relinked);
             if (!relinkedOk) {
-              print(
+              apiLogger.warning(
                 'deleteStep: failed to re-link successor $successorId '
                 'before deleting $stepId; chain may split',
               );
@@ -781,7 +770,7 @@ class APIService {
       await _pb!.collection('steps').delete(stepId);
       return true;
     } catch (e) {
-      print('Error when deleting step: $e');
+      apiLogger.warning('Error when deleting step', e);
       return false;
     }
   }

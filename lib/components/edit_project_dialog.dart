@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:project_todo/api.dart';
-import 'package:project_todo/components/errorMessageBox.dart';
-import 'package:project_todo/components/successSnackBar.dart';
+import 'package:project_todo/components/error_message_box.dart';
+import 'package:project_todo/components/success_snackbar.dart';
 import 'package:project_todo/models.dart';
 
 class EditProjectDialog extends StatefulWidget {

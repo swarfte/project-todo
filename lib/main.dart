@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:project_todo/logger.dart';
 import 'package:project_todo/pages/project.dart';
 
 void main() {
+  initLogging();
   runApp(const MainApp());
 }
 
