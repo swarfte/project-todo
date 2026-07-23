@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:project_todo/preferences.dart';
 import 'package:project_todo/api.dart';
-import 'package:project_todo/components/errorMessageBox.dart';
-import 'package:project_todo/components/loadingProgressBar.dart';
-import 'package:project_todo/components/successSnackBar.dart';
+import 'package:project_todo/components/error_message_box.dart';
+import 'package:project_todo/components/loading_progress_bar.dart';
+import 'package:project_todo/components/success_snackbar.dart';
 
 class SettingDialog extends StatefulWidget {
   const SettingDialog({super.key});

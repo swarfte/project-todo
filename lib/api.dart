@@ -87,10 +87,7 @@ class APIService {
       await connectDB();
     }
 
-    final body = {
-      'name': name,
-      "userId": _authData!.record.id,
-    };
+    final body = {'name': name, "userId": _authData!.record.id};
 
     try {
       final response = await _pb!
@@ -155,11 +152,9 @@ class APIService {
     try {
       final record = await _pb!.collection('projects').getOne(projectId);
       final name = record.toJson()['name'] as String?;
-      await _pb!.collection('projects').update(
-            projectId,
-            body: {'name': name},
-            files: [],
-          );
+      await _pb!
+          .collection('projects')
+          .update(projectId, body: {'name': name}, files: []);
     } catch (e) {
       print('Error when bumping project updatedAt: $e');
     }
@@ -324,10 +319,7 @@ class APIService {
 
   /// Recursively duplicates every direct child of [originalId] under
   /// [newParentId], preserving each child's fields and step chain.
-  Future<void> _duplicateChildren(
-    String originalId,
-    String newParentId,
-  ) async {
+  Future<void> _duplicateChildren(String originalId, String newParentId) async {
     final children = await _getDirectChildTasks(originalId);
     for (final child in children) {
       final newChildId = await _createTaskRecord(
@@ -356,9 +348,7 @@ class APIService {
       final records = await _pb!
           .collection('tasks')
           .getFullList(filter: 'previousTaskId="$parentId"');
-      return records
-          .map((r) => TaskAdaptor.fromJson(r.toJson()))
-          .toList();
+      return records.map((r) => TaskAdaptor.fromJson(r.toJson())).toList();
     } catch (e) {
       print('Error fetching child tasks of $parentId: $e');
       return const [];
@@ -370,9 +360,7 @@ class APIService {
   /// `previousStepId` links so the new chain matches the original order.
   Future<void> _copySteps(String originalTaskId, String newTaskId) async {
     final records = await getStepListByTaskId(originalTaskId);
-    final steps = records
-        .map((r) => StepAdaptor.fromJson(r.toJson()))
-        .toList();
+    final steps = records.map((r) => StepAdaptor.fromJson(r.toJson())).toList();
     final ordered = _orderSteps(steps);
 
     String? previousNewStepId;

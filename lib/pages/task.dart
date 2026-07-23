@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:project_todo/adaptor.dart';
 import 'package:project_todo/api.dart';
-import 'package:project_todo/components/createTaskDialog.dart';
-import 'package:project_todo/components/editTaskDialog.dart';
-import 'package:project_todo/components/successSnackBar.dart';
+import 'package:project_todo/components/create_task_dialog.dart';
+import 'package:project_todo/components/edit_task_dialog.dart';
+import 'package:project_todo/components/success_snackbar.dart';
 import 'package:project_todo/models.dart';
-import 'package:project_todo/components/chainTimeline.dart';
+import 'package:project_todo/components/chain_timeline.dart';
 import 'package:project_todo/pages/step.dart';
 
 /// Returns the color for a task's due date based on its urgency:
@@ -331,6 +331,7 @@ class _TaskPageState extends State<TaskPage> {
         markDescendants(child.id);
       }
     }
+
     for (final t in tasks) {
       if (t.isFolded) {
         markDescendants(t.id);

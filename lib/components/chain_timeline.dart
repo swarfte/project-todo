@@ -274,8 +274,7 @@ class TreeRow extends StatelessWidget {
                           if (stepCounts.containsKey(task.id)) ...[
                             const SizedBox(height: 4),
                             _StepProgressLine(
-                              completed:
-                                  stepCounts[task.id]!.completed,
+                              completed: stepCounts[task.id]!.completed,
                               total: stepCounts[task.id]!.total,
                             ),
                           ],
@@ -291,9 +290,7 @@ class TreeRow extends StatelessWidget {
                     IconButton(
                       tooltip: node.isFolded ? 'Unfold' : 'Fold',
                       icon: Icon(
-                        node.isFolded
-                            ? Icons.chevron_right
-                            : Icons.expand_more,
+                        node.isFolded ? Icons.chevron_right : Icons.expand_more,
                       ),
                       iconSize: 22,
                       color: Colors.blue[600],

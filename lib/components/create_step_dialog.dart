@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:project_todo/api.dart';
-import 'package:project_todo/components/errorMessageBox.dart';
-import 'package:project_todo/components/successSnackBar.dart';
+import 'package:project_todo/components/error_message_box.dart';
+import 'package:project_todo/components/success_snackbar.dart';
 
 class CreateStepDialog extends StatefulWidget {
   const CreateStepDialog({
@@ -129,8 +129,8 @@ class _CreateStepDialogState extends State<CreateStepDialog> {
               widget.previousStepId == null
                   ? 'This will be the first step in the chain.'
                   : isInsert
-                      ? 'Inserting after "${widget.previousStepName}". The steps that follow will shift down.'
-                      : 'This step will come after "${widget.previousStepName}".',
+                  ? 'Inserting after "${widget.previousStepName}". The steps that follow will shift down.'
+                  : 'This step will come after "${widget.previousStepName}".',
               style: TextStyle(color: Colors.grey[600], fontSize: 13),
             ),
 

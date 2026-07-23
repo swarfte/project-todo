@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:project_todo/adaptor.dart';
 import 'package:project_todo/api.dart';
-import 'package:project_todo/components/createStepDialog.dart';
-import 'package:project_todo/components/editStepDialog.dart';
-import 'package:project_todo/components/successSnackBar.dart';
+import 'package:project_todo/components/create_step_dialog.dart';
+import 'package:project_todo/components/edit_step_dialog.dart';
+import 'package:project_todo/components/success_snackbar.dart';
 import 'package:project_todo/models.dart';
 
 /// Shows the ordered list of steps that make up a single task.
@@ -81,7 +81,8 @@ class _StepPageState extends State<StepPage> {
 
     for (final s in steps) {
       final prev = s.previousStepId;
-      final hasValidPrev = prev != null && byId.containsKey(prev) && prev != s.id;
+      final hasValidPrev =
+          prev != null && byId.containsKey(prev) && prev != s.id;
       if (!hasValidPrev) {
         heads.add(s);
       } else {
@@ -167,7 +168,8 @@ class _StepPageState extends State<StepPage> {
               // surface the failure but let the reload reconcile the view.
               SuccessSnackBar.show(
                 messenger,
-                message: 'Step created, but the chain could not be fully '
+                message:
+                    'Step created, but the chain could not be fully '
                     're-linked. Please review.',
               );
             }
@@ -441,10 +443,7 @@ class _StepRow extends StatelessWidget {
                     left: _gutterWidth / 2,
                     top: 0,
                     bottom: 0,
-                    child: Container(
-                      width: 2,
-                      color: Colors.amber[300],
-                    ),
+                    child: Container(width: 2, color: Colors.amber[300]),
                   ),
                 // A half-line from the top of the row into the badge,
                 // connecting from the previous step (skipped for the first).
