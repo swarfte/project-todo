@@ -216,25 +216,35 @@ jobs:
         id: app-version
         shell: pwsh
         run: |
-          $versionLine = Get-Content -LiteralPath "pubspec.yaml" |
-            Where-Object {
-              $_ -match '^version:\s*'
-            } |
+          $ErrorActionPreference = "Stop"
+
+          $pubspecPath = Join-Path $env:GITHUB_WORKSPACE "pubspec.yaml"
+
+          if (-not (Test-Path -LiteralPath $pubspecPath)) {
+            throw "找不到 pubspec.yaml：$pubspecPath"
+          }
+
+          $versionLine = Get-Content -LiteralPath $pubspecPath |
+            Where-Object { $_ -match '^\s*version\s*:' } |
             Select-Object -First 1
 
           if (-not $versionLine) {
             throw "未能從 pubspec.yaml 找到 version"
           }
 
-          $fullVersion = (
-            $versionLine -replace '^version:\s*', ''
-          ).Trim()
+          $fullVersion = ($versionLine -replace '^\s*version\s*:\s*', '').Trim()
+          $fullVersion = $fullVersion.Trim('"').Trim("'")
 
-          # 例如 1.0.0+1 會轉成 1.0.0 給 Inno Setup 使用
-          $version = ($fullVersion -split '\+')[0].Trim()
+          # Flutter 版本例如 1.0.0+1：1.0.0 是版本名稱，+1 是 build number。
+          # Inno Setup AppVersion 只使用 1.0.0。
+          $version = ($fullVersion -split '\+', 2)[0].Trim()
 
-          if (:IsNullOrWhiteSpace($version)) {
+          if (-not $version) {
             throw "pubspec.yaml 的 version 無效：$fullVersion"
+          }
+
+          if (-not $env:GITHUB_OUTPUT) {
+            throw "GitHub Actions 沒有提供 GITHUB_OUTPUT"
           }
 
           "version=$version" >> $env:GITHUB_OUTPUT
