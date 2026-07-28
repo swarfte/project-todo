@@ -3,6 +3,7 @@ import 'package:project_todo/adaptor.dart';
 import 'package:project_todo/api.dart';
 import 'package:project_todo/components/create_step_dialog.dart';
 import 'package:project_todo/components/edit_step_dialog.dart';
+import 'package:project_todo/components/pin_window_button.dart';
 import 'package:project_todo/components/success_snackbar.dart';
 import 'package:project_todo/models.dart';
 
@@ -281,6 +282,7 @@ class _StepPageState extends State<StepPage> {
         title: Text(widget.task.name),
         backgroundColor: Colors.amber[700],
         foregroundColor: Colors.white,
+        actions: [const PinWindowButton()],
       ),
       body: _buildBody(),
       floatingActionButton: FloatingActionButton(

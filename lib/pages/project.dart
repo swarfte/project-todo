@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:project_todo/adaptor.dart';
 import 'package:project_todo/api.dart';
+import 'package:project_todo/components/pin_window_button.dart';
 import 'package:project_todo/components/setting_dialog.dart';
 import 'package:project_todo/components/create_project_dialog.dart';
 import 'package:project_todo/components/edit_project_dialog.dart';
@@ -197,6 +198,7 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Colors.blue[600],
         foregroundColor: Colors.white, // set text color to white
         actions: [
+          const PinWindowButton(),
           IconButton(
             icon: Icon(Icons.settings),
             tooltip: 'Settings',
