@@ -4,6 +4,7 @@ import 'package:project_todo/adaptor.dart';
 import 'package:project_todo/api.dart';
 import 'package:project_todo/components/create_task_dialog.dart';
 import 'package:project_todo/components/edit_task_dialog.dart';
+import 'package:project_todo/components/pin_window_button.dart';
 import 'package:project_todo/components/success_snackbar.dart';
 import 'package:project_todo/models.dart';
 import 'package:project_todo/components/chain_timeline.dart';
@@ -545,6 +546,7 @@ class _TaskPageState extends State<TaskPage> {
         title: Text(widget.project.name),
         backgroundColor: Colors.teal[600],
         foregroundColor: Colors.white, // set text color to white
+        actions: [const PinWindowButton()],
       ),
       body: _buildBody(),
       floatingActionButton: FloatingActionButton(
