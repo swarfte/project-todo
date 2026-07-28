@@ -8,6 +8,8 @@ import 'package:project_todo/components/edit_project_dialog.dart';
 import 'package:project_todo/components/success_snackbar.dart';
 import 'package:project_todo/models.dart';
 import 'package:project_todo/pages/task.dart';
+import 'package:project_todo/preferences.dart';
+import 'package:window_manager/window_manager.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -25,11 +27,28 @@ class _HomePageState extends State<HomePage> {
   Map<String, ({int total, int completed})> _taskCounts = {};
   bool _isLoading = true;
   String? _loadError;
+  // Mirrors the window's always-on-top state so the pin icon reflects it.
+  bool _alwaysOnTop = false;
 
   @override
   void initState() {
     super.initState();
     _loadProjects();
+    _loadAlwaysOnTop();
+  }
+
+  Future<void> _loadAlwaysOnTop() async {
+    final value = await ConfigService().getAlwaysOnTop();
+    if (!mounted) return;
+    setState(() => _alwaysOnTop = value);
+  }
+
+  Future<void> _toggleAlwaysOnTop() async {
+    final value = !_alwaysOnTop;
+    await windowManager.setAlwaysOnTop(value);
+    await ConfigService().saveAlwaysOnTop(value);
+    if (!mounted) return;
+    setState(() => _alwaysOnTop = value);
   }
 
   Future<void> _loadProjects() async {
@@ -197,6 +216,13 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Colors.blue[600],
         foregroundColor: Colors.white, // set text color to white
         actions: [
+          IconButton(
+            icon: Icon(
+              _alwaysOnTop ? Icons.push_pin : Icons.push_pin_outlined,
+            ),
+            tooltip: _alwaysOnTop ? 'Unpin window' : 'Pin window on top',
+            onPressed: _toggleAlwaysOnTop,
+          ),
           IconButton(
             icon: Icon(Icons.settings),
             tooltip: 'Settings',

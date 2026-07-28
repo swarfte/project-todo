@@ -7,6 +7,7 @@ class ConfigService {
   static const String _apiUrlKey = 'api_url';
   static const String _usernameKey = 'username';
   static const String _passwordKey = 'password';
+  static const String _alwaysOnTopKey = 'always_on_top';
 
   // Defaults applied on first launch so a brand-new install can connect to
   // the seeded PocketBase backend without any setup. Once the user saves
@@ -50,6 +51,16 @@ class ConfigService {
   Future<String> getPassword() async {
     final preference = await SharedPreferences.getInstance();
     return preference.getString(_passwordKey) ?? defaultPassword;
+  }
+
+  Future<void> saveAlwaysOnTop(bool value) async {
+    final preference = await SharedPreferences.getInstance();
+    await preference.setBool(_alwaysOnTopKey, value);
+  }
+
+  Future<bool> getAlwaysOnTop() async {
+    final preference = await SharedPreferences.getInstance();
+    return preference.getBool(_alwaysOnTopKey) ?? false;
   }
 
   Future<void> clearConfig() async {
