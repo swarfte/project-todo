@@ -712,6 +712,38 @@ class APIService {
     }
   }
 
+  /// Sets `isCompleted = false` on every completed step belonging to [taskId].
+  ///
+  /// Only the completion flag is touched — step names and the
+  /// `previousStepId` chain are left intact, so the order and content of the
+  /// chain are unchanged. Steps already pending are skipped (no network
+  /// round-trip). Returns the number of steps that were actually flipped to
+  /// pending; individual failures are logged but don't abort the rest, since
+  /// the caller reloads either way and the UI reflects whatever got through.
+  Future<int> unfinishAllSteps(String taskId) async {
+    final records = await getStepListByTaskId(taskId);
+    final steps = records.map((r) => StepAdaptor.fromJson(r.toJson())).toList();
+
+    var succeeded = 0;
+    for (final step in steps) {
+      if (!step.isCompleted) continue; // already pending; nothing to do.
+
+      final uncompleted = TaskStep(
+        id: step.id,
+        name: step.name,
+        taskId: step.taskId,
+        isCompleted: false,
+        createdAt: step.createdAt,
+        updatedAt: step.updatedAt,
+        previousStepId: step.previousStepId,
+      );
+      if (await updateStep(uncompleted)) {
+        succeeded++;
+      }
+    }
+    return succeeded;
+  }
+
   /// Deletes a step and re-links the chain so order is preserved.
   ///
   /// The steps collection is a linked list via `previousStepId`, so a naive

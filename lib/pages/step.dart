@@ -275,6 +275,55 @@ class _StepPageState extends State<StepPage> {
     }
   }
 
+  /// Marks every completed step in this task as pending again. Confirms
+  /// first since it reverses all progress on the chain; the button is only
+  /// enabled while at least one step is done. Shows a snackbar with the
+  /// count actually reset (individual failures are logged by the API layer
+  /// but don't abort the batch) and reloads the list.
+  Future<void> _unfinishAllSteps() async {
+    final completedCount = _steps.where((s) => s.isCompleted).length;
+    if (completedCount == 0) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Reset all steps'),
+          content: Text(
+            'Mark all $completedCount completed step'
+            '${completedCount == 1 ? '' : 's'} as not done?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Reset'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
+    final resetCount = await _apiService.unfinishAllSteps(widget.task.id);
+
+    if (!mounted) return;
+
+    SuccessSnackBar.show(
+      messenger,
+      message: resetCount > 0
+          ? '$resetCount step${resetCount == 1 ? '' : 's'} reset to not done.'
+          : 'No steps were reset.',
+    );
+    _loadSteps();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -282,7 +331,18 @@ class _StepPageState extends State<StepPage> {
         title: Text(widget.task.name),
         backgroundColor: Colors.amber[700],
         foregroundColor: Colors.white,
-        actions: [const PinWindowButton()],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.restart_alt),
+            tooltip: 'Reset all steps',
+            // Only meaningful when at least one step is done; disabled
+            // otherwise so the icon reads as inert, not broken.
+            onPressed: _steps.any((s) => s.isCompleted)
+                ? _unfinishAllSteps
+                : null,
+          ),
+          const PinWindowButton(),
+        ],
       ),
       body: _buildBody(),
       floatingActionButton: FloatingActionButton(
