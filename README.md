@@ -129,6 +129,25 @@ testing — so there is **no backend setup step**: just start it.
 This serves the API at `http://127.0.0.1:8090` (the app's default API URL).
 Leave this terminal running in the background.
 
+> #### ⚠️ Change the default superuser credentials
+> The dashboard is seeded with a well-known default account (see below).
+> **Change the superuser email and password as soon as setup is complete.**
+> Sign in to the dashboard, open **Settings → Admins**, and update the
+> account (or create a new admin and delete the default one).
+
+#### Admin dashboard (PocketBase Admin UI)
+
+The bundled server exposes the PocketBase admin dashboard, where you can
+manage collections, records, and API rules directly:
+
+- **URL** — http://127.0.0.1:8090/_/
+- **Username** — `admin@example.com`
+- **Password** — `admin1234`
+
+This is the **superuser / admin** account for the backend dashboard — it is
+*not* a regular app user. Use it to inspect or fix data, then lock it down
+by changing the credentials as described above.
+
 ### 2. Run the app
 
 ```bash
@@ -142,8 +161,8 @@ On first launch, the app is pre-filled with the seeded backend's defaults
 so you can start immediately:
 
 - **API URL** — `http://127.0.0.1:8090`
-- **Username** — `admin@example.com`
-- **Password** — `admin1234`
+- **Username** — `guest@example.com`
+- **Password** — `guest1234`
 
 If you're running your own backend, open the **Settings** dialog (gear icon
 in the top-right corner of the project page) and update the values to your

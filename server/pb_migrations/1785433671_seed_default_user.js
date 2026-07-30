@@ -1,8 +1,8 @@
 /// <reference path="../pb_data/types.d.ts" />
 migrate((app) => {
   // add up queries...
-  const email = "admin@example.com";
-  const password = "admin1234";
+  const email = "guest@example.com";
+  const password = "guest1234";
   let user = null;
 
   try{

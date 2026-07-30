@@ -13,8 +13,8 @@ class ConfigService {
   // the seeded PocketBase backend without any setup. Once the user saves
   // their own values, the saved value always wins over these.
   static const String defaultApiUrl = 'http://127.0.0.1:8090';
-  static const String defaultUsername = 'admin@example.com';
-  static const String defaultPassword = 'admin1234';
+  static const String defaultUsername = 'guest@example.com';
+  static const String defaultPassword = 'guest1234';
 
   static final ConfigService _instance = ConfigService._internal();
 
