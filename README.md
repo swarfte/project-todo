@@ -142,7 +142,7 @@ On first launch, the app is pre-filled with the seeded backend's defaults
 so you can start immediately:
 
 - **API URL** — `http://127.0.0.1:8090`
-- **Username** — `admin@gmail.com`
+- **Username** — `admin@example.com`
 - **Password** — `admin1234`
 
 If you're running your own backend, open the **Settings** dialog (gear icon
