@@ -132,7 +132,7 @@ Leave this terminal running in the background.
 > #### ⚠️ Change the default superuser credentials
 > The dashboard is seeded with a well-known default account (see below).
 > **Change the superuser email and password as soon as setup is complete.**
-> Sign in to the dashboard, open **Settings → Admins**, and update the
+> Sign in to the dashboard, open **Settings → System → _superusers**, and update the
 > account (or create a new admin and delete the default one).
 
 #### Admin dashboard (PocketBase Admin UI)
