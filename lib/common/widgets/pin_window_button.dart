@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:project_todo/preferences.dart';
+import 'package:project_todo/core/storage/preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 /// Global, app-wide state of the window's always-on-top flag. A single

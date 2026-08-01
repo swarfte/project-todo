@@ -1,8 +1,8 @@
 import 'package:pocketbase/pocketbase.dart';
-import 'package:project_todo/preferences.dart';
+import 'package:project_todo/core/storage/preferences.dart';
 import 'package:project_todo/models.dart';
 import 'package:project_todo/adaptor.dart';
-import 'package:project_todo/logger.dart';
+import 'package:project_todo/core/log/logger.dart';
 
 class APIService {
   // singleton class
@@ -609,7 +609,9 @@ class APIService {
     if (newStepId == null) {
       // Couldn't locate the new step to relink against. Treat as partial
       // failure: the insert happened, the successor is now a second head.
-      apiLogger.warning('insertStep: created step but could not locate it to relink');
+      apiLogger.warning(
+        'insertStep: created step but could not locate it to relink',
+      );
       return false;
     }
 

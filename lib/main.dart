@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:project_todo/common/widgets/pin_window_button.dart';
-import 'package:project_todo/logger.dart';
-import 'package:project_todo/preferences.dart';
+import 'package:project_todo/core/log/logger.dart';
+import 'package:project_todo/core/storage/preferences.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:project_todo/app.dart';
 

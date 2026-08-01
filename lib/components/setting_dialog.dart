@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:project_todo/preferences.dart';
+import 'package:project_todo/core/storage/preferences.dart';
 import 'package:project_todo/api.dart';
 import 'package:project_todo/common/widgets/app_version.dart';
 import 'package:project_todo/common/widgets/error_message_box.dart';
