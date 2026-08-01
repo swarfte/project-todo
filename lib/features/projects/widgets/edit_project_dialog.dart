@@ -1,0 +1,129 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:project_todo/common/widgets/error_message_box.dart';
+import 'package:project_todo/common/widgets/success_snackbar.dart';
+import 'package:project_todo/core/models/project.dart';
+import 'package:project_todo/features/projects/projects_vm.dart';
+
+class EditProjectDialog extends ConsumerStatefulWidget {
+  const EditProjectDialog({super.key, required this.project});
+
+  final Project project;
+
+  @override
+  ConsumerState<EditProjectDialog> createState() => _EditProjectDialogState();
+}
+
+class _EditProjectDialogState extends ConsumerState<EditProjectDialog> {
+  late final TextEditingController _nameController;
+
+  String? _errorMessage;
+  bool _isSending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.project.name);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    // Avoid duplicate submissions.
+    if (_isSending) return;
+
+    final projectName = _nameController.text.trim();
+
+    if (projectName.isEmpty) {
+      setState(() {
+        _errorMessage = 'Project name cannot be empty.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSending = true;
+      _errorMessage = null;
+    });
+
+    final updated = widget.project.copyWith(name: projectName);
+    final result =
+        await ref.read(projectsProvider.notifier).updateProject(updated);
+
+    // The dialog may have been removed while waiting for the API.
+    if (!mounted) return;
+
+    if (result.isFailure) {
+      setState(() {
+        _isSending = false;
+        _errorMessage = 'Failed to update project.';
+      });
+      return;
+    }
+
+    // Get the messenger before closing the dialog.
+    final messenger = ScaffoldMessenger.of(context);
+
+    Navigator.of(context).pop();
+
+    SuccessSnackBar.show(
+      messenger,
+      message: 'Project "$projectName" updated successfully.',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Project'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _nameController,
+              enabled: !_isSending,
+              decoration: const InputDecoration(labelText: 'Project Name'),
+              onSubmitted: (_) => _save(),
+            ),
+
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 16),
+              ErrorMessageBox(errorMessage: _errorMessage!),
+            ],
+
+            if (_isSending) ...[const LinearProgressIndicator()],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSending
+              ? null
+              : () {
+                  Navigator.of(context).pop();
+                },
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _isSending ? null : _save,
+          child: _isSending
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
