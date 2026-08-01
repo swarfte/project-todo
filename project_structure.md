@@ -1,7 +1,5 @@
 ```
 C:\USERS\SWARFTE\DESKTOP\CODING\PROJECT-TODO\LIB
-Volume serial number is 0000005D 88C9:382A
-C:\USERS\SWARFTE\DESKTOP\CODING\PROJECT-TODO\LIB
 │   adaptor.dart
 │   api.dart
 │   app.dart
@@ -45,16 +43,19 @@ C:\USERS\SWARFTE\DESKTOP\CODING\PROJECT-TODO\LIB
 │           
 ├───features
 │   ├───projects
-│   │   ├───view
-│   │   ├───view_model
+│   │   │   projects_page.dart
+│   │   │   projects_vm.dart
+│   │   │   
 │   │   └───widgets
 │   ├───steps
-│   │   ├───view
-│   │   ├───view_model
+│   │   │   steps_page.dart
+│   │   │   steps_vm.dart
+│   │   │   
 │   │   └───widgets
 │   └───tasks
-│       ├───view
-│       ├───view_model
+│       │   tasks_page.dart
+│       │   tasks_vm.dart
+│       │   
 │       └───widgets
 └───pages
         project.dart
