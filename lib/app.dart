@@ -8,7 +8,7 @@ class MainApp extends StatelessWidget {
     return MaterialApp(
       title: 'Project Todo',
       theme: ThemeData(),
-      home: const HomePage(),
+      home: const ProjectPage(),
     );
   }
 }

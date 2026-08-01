@@ -10,14 +10,14 @@ import 'package:project_todo/components/success_snackbar.dart';
 import 'package:project_todo/models.dart';
 import 'package:project_todo/pages/task.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class ProjectPage extends StatefulWidget {
+  const ProjectPage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<ProjectPage> createState() => _ProjectPageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _ProjectPageState extends State<ProjectPage> {
   final APIService _apiService = APIService();
 
   List<Project> _projects = [];
