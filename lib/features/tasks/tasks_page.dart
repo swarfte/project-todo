@@ -173,6 +173,14 @@ class TasksPage extends ConsumerWidget {
         title: Text(projectName),
         backgroundColor: Colors.teal[600],
         foregroundColor: Colors.white,
+        // The page is reached via `go` (not `push`), so there is no
+        // automatic back stack — provide an explicit return to the
+        // project list.
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to projects',
+          onPressed: () => const ProjectsRoute().go(context),
+        ),
         actions: [const PinWindowButton()],
       ),
       body: asyncTasks.when(

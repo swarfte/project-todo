@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:project_todo/common/widgets/pin_window_button.dart';
 import 'package:project_todo/common/widgets/success_snackbar.dart';
 import 'package:project_todo/core/models/task_step.dart';
+import 'package:project_todo/core/router/routes.dart';
 import 'package:project_todo/features/steps/steps_vm.dart';
 import 'package:project_todo/features/steps/widgets/create_step_dialog.dart';
 import 'package:project_todo/features/steps/widgets/edit_step_dialog.dart';
@@ -206,6 +207,14 @@ class StepsPage extends ConsumerWidget {
         title: Text(taskName),
         backgroundColor: Colors.amber[700],
         foregroundColor: Colors.white,
+        // The page is reached via `go` (not `push`), so there is no
+        // automatic back stack — provide an explicit return to the
+        // owning task's tree.
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back to task',
+          onPressed: () => TasksRoute(projectId).go(context),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.restart_alt),
