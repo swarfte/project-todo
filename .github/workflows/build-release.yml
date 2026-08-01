@@ -108,6 +108,133 @@ jobs:
         with:
           channel: stable
           cache: true
+      
+      - name: Validate Android signing secrets
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          EXPECTED_SHA256: ${{ secrets.ANDROID_SIGNING_SHA256 }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::缺少 ANDROID_KEYSTORE_BASE64 secret"
+            exit 1
+          fi
+
+          if [ -z "$STORE_PASSWORD" ]; then
+            echo "::error::缺少 ANDROID_STORE_PASSWORD secret"
+            exit 1
+          fi
+
+          if [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::缺少 ANDROID_KEY_PASSWORD secret"
+            exit 1
+          fi
+
+          if [ -z "$KEY_ALIAS" ]; then
+            echo "::error::缺少 ANDROID_KEY_ALIAS secret"
+            exit 1
+          fi
+
+          if [ -z "$EXPECTED_SHA256" ]; then
+            echo "::error::缺少 ANDROID_SIGNING_SHA256 repository variable"
+            exit 1
+          fi
+
+          echo "Android signing secrets 和 variable 已設定。"
+
+      - name: Restore Android release keystore
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          KEYSTORE_PATH="$GITHUB_WORKSPACE/android/app/project-todo-release.jks"
+
+          printf '%s' "$KEYSTORE_BASE64" |
+            base64 --decode > "$KEYSTORE_PATH"
+
+          if [ ! -s "$KEYSTORE_PATH" ]; then
+            echo "::error::Android keystore 還原失敗或檔案大小為 0"
+            exit 1
+          fi
+
+          chmod 600 "$KEYSTORE_PATH"
+
+          echo "Android release keystore 已成功還原。"
+
+      - name: Create Android key.properties
+        shell: bash
+        env:
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+
+          KEY_PROPERTIES="$GITHUB_WORKSPACE/android/key.properties"
+
+          {
+            printf 'storePassword=%s\n' "$STORE_PASSWORD"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'storeFile=%s\n' "project-todo-release.jks"
+          } > "$KEY_PROPERTIES"
+
+          if [ ! -s "$KEY_PROPERTIES" ]; then
+            echo "::error::建立 android/key.properties 失敗"
+            exit 1
+          fi
+
+          chmod 600 "$KEY_PROPERTIES"
+
+          echo "android/key.properties 已建立。"
+
+      - name: Verify restored Android keystore
+        shell: bash
+        env:
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          EXPECTED_SHA256: ${{ secrets.ANDROID_SIGNING_SHA256 }}
+        run: |
+          set -euo pipefail
+
+          KEYSTORE_PATH="$GITHUB_WORKSPACE/android/app/project-todo-release.jks"
+
+          ACTUAL_SHA256="$(
+            keytool -list -v \
+              -keystore "$KEYSTORE_PATH" \
+              -storepass "$STORE_PASSWORD" \
+              -alias "$KEY_ALIAS" |
+            sed -n 's/.*SHA256: //p' |
+            head -n 1 |
+            tr '[:lower:]' '[:upper:]' |
+            tr -d ':[:space:]'
+          )"
+
+          NORMALIZED_EXPECTED="$(
+            printf '%s' "$EXPECTED_SHA256" |
+              tr '[:lower:]' '[:upper:]' |
+              tr -d ':[:space:]'
+          )"
+
+          if [ -z "$ACTUAL_SHA256" ]; then
+            echo "::error::無法讀取 keystore SHA-256 fingerprint"
+            exit 1
+          fi
+
+          if [ "$ACTUAL_SHA256" != "$NORMALIZED_EXPECTED" ]; then
+            echo "::error::Keystore fingerprint 與預期值不符"
+            echo "Actual SHA-256: $ACTUAL_SHA256"
+            exit 1
+          fi
+
+          echo "Keystore SHA-256 fingerprint 驗證成功：$ACTUAL_SHA256"
 
       - name: Show Flutter version
         run: flutter --version
@@ -162,6 +289,72 @@ jobs:
 
           echo "Android APK 已準備完成："
           ls -lh "$TARGET_APK"
+
+      - name: Verify release APK signature
+        shell: bash
+        env:
+          EXPECTED_SHA256: ${{ secrets.ANDROID_SIGNING_SHA256 }}
+        run: |
+          set -euo pipefail
+
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+
+          if [ ! -s "$APK_PATH" ]; then
+            echo "::error::找不到 APK 或檔案大小為 0：$APK_PATH"
+            exit 1
+          fi
+
+          APKSIGNER="$(
+            find "$ANDROID_HOME/build-tools" \
+              -maxdepth 2 \
+              -type f \
+              -name apksigner \
+              -print |
+            sort -V |
+            tail -n 1
+          )"
+
+          if [ -z "$APKSIGNER" ] || [ ! -x[  "$APKSIGNER" ];hen
+            echo "::error::找不到 Android SDK apksigner"
+            exit 1
+          fi
+
+          echo "使用 apksigner：$APKSIGNER"
+
+          "$APKSIGNER" verify \
+            --verbose \
+            --print-certs \
+            "$APK_PATH"
+
+          ACTUAL_SHA256="$(
+            "$APKSIGNER" verify \
+              --print-certs \
+              "$APK_PATH" |
+            sed -n \
+              's/^Signer #1 certificate SHA-256 digest: //p' |
+            head -n 1 |
+            tr '[:lower:]' '[:upper:]' |
+            tr -d ':[:space:]'
+          )"
+
+          NORMALIZED_EXPECTED="$(
+            printf '%s' "$EXPECTED_SHA256" |
+              tr '[:lower:]' '[:upper:]' |
+              tr -d ':[:space:]'
+          )"
+
+          if [ -z "$ACTUAL_SHA256" ]; then
+            echo "::error::無法讀取 APK signing certificate fingerprint"
+            exit 1
+          fi
+
+          if [ "$ACTUAL_SHA256" != "$NORMALIZED_EXPECTED" ]; then
+            echo "::error::APK signing certificate 不正確"
+            echo "Actual SHA-256: $ACTUAL_SHA256"
+            exit 1
+          fi
+
+          echo "APK signing certificate 驗證成功：$ACTUAL_SHA256"
 
       # Artifact 用於將 APK 傳送到 create-release job。
       # 它不是最終的 GitHub Release。
