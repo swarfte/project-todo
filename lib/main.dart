@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:project_todo/common/widgets/pin_window_button.dart';
-import 'package:project_todo/core/log/logger.dart';
-import 'package:project_todo/core/storage/preferences.dart';
-import 'package:window_manager/window_manager.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:project_todo/app.dart';
+import 'package:project_todo/core/log/logger.dart';
+import 'package:project_todo/core/state/app_providers.dart';
+import 'package:window_manager/window_manager.dart';
 
-void main() async {
+Future<void> main() async {
   // Required before any plugin (window_manager, SharedPreferences) use on
   // desktop platforms.
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,12 +13,15 @@ void main() async {
 
   await windowManager.ensureInitialized();
 
-  // Restore the user's last always-on-top choice so a pinned window stays
-  // pinned across restarts. Seed the global notifier so every page's pin
-  // button reflects the restored state.
-  final alwaysOnTop = await ConfigService().getAlwaysOnTop();
-  await windowManager.setAlwaysOnTop(alwaysOnTop);
-  alwaysOnTopNotifier.value = alwaysOnTop;
+  // Create the container now so we can restore the always-on-top preference
+  // before the first frame — a pinned window stays pinned across restarts.
+  final container = ProviderContainer();
+  await container.read(alwaysOnTopProvider.notifier).load();
 
-  runApp(const MainApp());
+  runApp(
+    UncontrolledProviderScope(
+      container: container,
+      child: const MainApp(),
+    ),
+  );
 }
