@@ -18,7 +18,7 @@ migrate((app) => {
     user.set("password", password);
     user.set("passwordConfirm", password);
     user.set("verified", true);
-    user.set("name", "Admin");
+    user.set("name", "Guest");
 
     app.save(user);
   }
