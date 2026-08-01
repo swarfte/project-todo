@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:project_todo/adaptor.dart';
 import 'package:project_todo/api.dart';
-import 'package:project_todo/components/pin_window_button.dart';
+import 'package:project_todo/common/widgets/pin_window_button.dart';
 import 'package:project_todo/components/setting_dialog.dart';
 import 'package:project_todo/components/create_project_dialog.dart';
 import 'package:project_todo/components/edit_project_dialog.dart';
-import 'package:project_todo/components/success_snackbar.dart';
+import 'package:project_todo/common/widgets/success_snackbar.dart';
 import 'package:project_todo/models.dart';
 import 'package:project_todo/pages/task.dart';
 

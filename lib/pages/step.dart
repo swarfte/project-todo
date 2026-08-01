@@ -3,8 +3,8 @@ import 'package:project_todo/adaptor.dart';
 import 'package:project_todo/api.dart';
 import 'package:project_todo/components/create_step_dialog.dart';
 import 'package:project_todo/components/edit_step_dialog.dart';
-import 'package:project_todo/components/pin_window_button.dart';
-import 'package:project_todo/components/success_snackbar.dart';
+import 'package:project_todo/common/widgets/pin_window_button.dart';
+import 'package:project_todo/common/widgets/success_snackbar.dart';
 import 'package:project_todo/models.dart';
 
 /// Shows the ordered list of steps that make up a single task.
