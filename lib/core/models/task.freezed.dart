@@ -20,6 +20,7 @@ mixin _$Task {
 /// or null if this task is a chain root.
  String? get previousTaskId;/// When the task was marked complete, if ever.
 @JsonKey(fromJson: _parseNullableDate, toJson: _formatNullableDate) DateTime? get completedAt;/// Whether the task's descendants are currently hidden in the UI.
+// ignore: invalid_annotation_target
  bool get isFolded;
 /// Create a copy of Task
 /// with the given fields replaced by the non-null parameter values.
@@ -240,6 +241,7 @@ class _Task implements Task {
 /// When the task was marked complete, if ever.
 @override@JsonKey(fromJson: _parseNullableDate, toJson: _formatNullableDate) final  DateTime? completedAt;
 /// Whether the task's descendants are currently hidden in the UI.
+// ignore: invalid_annotation_target
 @override@JsonKey() final  bool isFolded;
 
 /// Create a copy of Task

@@ -15,12 +15,12 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$TaskStep {
 
- String get id; String get name; String get taskId; bool get isCompleted;/// Creation time, falling back to PocketBase's built-in `created` field
-/// when the custom `createdAt` is missing or empty. If both are absent a
-/// sentinel epoch is used so the UI never crashes on missing dates.
-@JsonKey(fromJson: _parseCreatedAt, toJson: _formatCreatedAt) DateTime get createdAt;/// Last-update time, falling back to PocketBase's built-in `updated`
-/// field under the same rules as [createdAt].
-@JsonKey(fromJson: _parseUpdatedAt, toJson: _formatUpdatedAt) DateTime get updatedAt;/// Id of the step that comes immediately before this one in the chain,
+ String get id; String get name; String get taskId;// ignore: invalid_annotation_target
+ bool get isCompleted;/// Creation time. Decoded (with fallback to `created`) by
+/// [fromPocketBaseJson] before the generated constructor runs, so the
+/// plain [DateTime] type here never has to parse a missing/empty string.
+ DateTime get createdAt;/// Last-update time. Falls back to `updated` — see [createdAt].
+ DateTime get updatedAt;/// Id of the step that comes immediately before this one in the chain,
 /// or null if this step is a chain head.
  String? get previousStepId;
 /// Create a copy of TaskStep
@@ -55,7 +55,7 @@ abstract mixin class $TaskStepCopyWith<$Res>  {
   factory $TaskStepCopyWith(TaskStep value, $Res Function(TaskStep) _then) = _$TaskStepCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, String taskId, bool isCompleted,@JsonKey(fromJson: _parseCreatedAt, toJson: _formatCreatedAt) DateTime createdAt,@JsonKey(fromJson: _parseUpdatedAt, toJson: _formatUpdatedAt) DateTime updatedAt, String? previousStepId
+ String id, String name, String taskId, bool isCompleted, DateTime createdAt, DateTime updatedAt, String? previousStepId
 });
 
 
@@ -166,7 +166,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String taskId,  bool isCompleted, @JsonKey(fromJson: _parseCreatedAt, toJson: _formatCreatedAt)  DateTime createdAt, @JsonKey(fromJson: _parseUpdatedAt, toJson: _formatUpdatedAt)  DateTime updatedAt,  String? previousStepId)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String taskId,  bool isCompleted,  DateTime createdAt,  DateTime updatedAt,  String? previousStepId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TaskStep() when $default != null:
 return $default(_that.id,_that.name,_that.taskId,_that.isCompleted,_that.createdAt,_that.updatedAt,_that.previousStepId);case _:
@@ -187,7 +187,7 @@ return $default(_that.id,_that.name,_that.taskId,_that.isCompleted,_that.created
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String taskId,  bool isCompleted, @JsonKey(fromJson: _parseCreatedAt, toJson: _formatCreatedAt)  DateTime createdAt, @JsonKey(fromJson: _parseUpdatedAt, toJson: _formatUpdatedAt)  DateTime updatedAt,  String? previousStepId)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String taskId,  bool isCompleted,  DateTime createdAt,  DateTime updatedAt,  String? previousStepId)  $default,) {final _that = this;
 switch (_that) {
 case _TaskStep():
 return $default(_that.id,_that.name,_that.taskId,_that.isCompleted,_that.createdAt,_that.updatedAt,_that.previousStepId);case _:
@@ -207,7 +207,7 @@ return $default(_that.id,_that.name,_that.taskId,_that.isCompleted,_that.created
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String taskId,  bool isCompleted, @JsonKey(fromJson: _parseCreatedAt, toJson: _formatCreatedAt)  DateTime createdAt, @JsonKey(fromJson: _parseUpdatedAt, toJson: _formatUpdatedAt)  DateTime updatedAt,  String? previousStepId)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String taskId,  bool isCompleted,  DateTime createdAt,  DateTime updatedAt,  String? previousStepId)?  $default,) {final _that = this;
 switch (_that) {
 case _TaskStep() when $default != null:
 return $default(_that.id,_that.name,_that.taskId,_that.isCompleted,_that.createdAt,_that.updatedAt,_that.previousStepId);case _:
@@ -222,20 +222,20 @@ return $default(_that.id,_that.name,_that.taskId,_that.isCompleted,_that.created
 @JsonSerializable()
 
 class _TaskStep implements TaskStep {
-  const _TaskStep({required this.id, required this.name, required this.taskId, this.isCompleted = false, @JsonKey(fromJson: _parseCreatedAt, toJson: _formatCreatedAt) required this.createdAt, @JsonKey(fromJson: _parseUpdatedAt, toJson: _formatUpdatedAt) required this.updatedAt, this.previousStepId});
+  const _TaskStep({required this.id, required this.name, required this.taskId, this.isCompleted = false, required this.createdAt, required this.updatedAt, this.previousStepId});
   factory _TaskStep.fromJson(Map<String, dynamic> json) => _$TaskStepFromJson(json);
 
 @override final  String id;
 @override final  String name;
 @override final  String taskId;
+// ignore: invalid_annotation_target
 @override@JsonKey() final  bool isCompleted;
-/// Creation time, falling back to PocketBase's built-in `created` field
-/// when the custom `createdAt` is missing or empty. If both are absent a
-/// sentinel epoch is used so the UI never crashes on missing dates.
-@override@JsonKey(fromJson: _parseCreatedAt, toJson: _formatCreatedAt) final  DateTime createdAt;
-/// Last-update time, falling back to PocketBase's built-in `updated`
-/// field under the same rules as [createdAt].
-@override@JsonKey(fromJson: _parseUpdatedAt, toJson: _formatUpdatedAt) final  DateTime updatedAt;
+/// Creation time. Decoded (with fallback to `created`) by
+/// [fromPocketBaseJson] before the generated constructor runs, so the
+/// plain [DateTime] type here never has to parse a missing/empty string.
+@override final  DateTime createdAt;
+/// Last-update time. Falls back to `updated` — see [createdAt].
+@override final  DateTime updatedAt;
 /// Id of the step that comes immediately before this one in the chain,
 /// or null if this step is a chain head.
 @override final  String? previousStepId;
@@ -273,7 +273,7 @@ abstract mixin class _$TaskStepCopyWith<$Res> implements $TaskStepCopyWith<$Res>
   factory _$TaskStepCopyWith(_TaskStep value, $Res Function(_TaskStep) _then) = __$TaskStepCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, String taskId, bool isCompleted,@JsonKey(fromJson: _parseCreatedAt, toJson: _formatCreatedAt) DateTime createdAt,@JsonKey(fromJson: _parseUpdatedAt, toJson: _formatUpdatedAt) DateTime updatedAt, String? previousStepId
+ String id, String name, String taskId, bool isCompleted, DateTime createdAt, DateTime updatedAt, String? previousStepId
 });
 
 

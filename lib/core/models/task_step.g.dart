@@ -11,8 +11,8 @@ _TaskStep _$TaskStepFromJson(Map<String, dynamic> json) => _TaskStep(
   name: json['name'] as String,
   taskId: json['taskId'] as String,
   isCompleted: json['isCompleted'] as bool? ?? false,
-  createdAt: _parseCreatedAt(json['createdAt'] as Map<String, dynamic>),
-  updatedAt: _parseUpdatedAt(json['updatedAt'] as Map<String, dynamic>),
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  updatedAt: DateTime.parse(json['updatedAt'] as String),
   previousStepId: json['previousStepId'] as String?,
 );
 
@@ -21,7 +21,7 @@ Map<String, dynamic> _$TaskStepToJson(_TaskStep instance) => <String, dynamic>{
   'name': instance.name,
   'taskId': instance.taskId,
   'isCompleted': instance.isCompleted,
-  'createdAt': _formatCreatedAt(instance.createdAt),
-  'updatedAt': _formatUpdatedAt(instance.updatedAt),
+  'createdAt': instance.createdAt.toIso8601String(),
+  'updatedAt': instance.updatedAt.toIso8601String(),
   'previousStepId': instance.previousStepId,
 };

@@ -8,11 +8,12 @@ part 'task_step.g.dart';
 /// successor each).
 ///
 /// Some collections rely on PocketBase's built-in `created` / `updated` audit
-/// fields instead of custom `createdAt`/`updatedAt` fields. The date
-/// converters below fall back to those built-ins so a missing custom field
-/// doesn't crash the whole step list.
+/// fields instead of custom `createdAt`/`updatedAt` fields. Because that
+/// fallback needs to look at a *second* JSON field, it can't be expressed as a
+/// per-field [JsonConverter]; instead the whole-record decoding lives in
+/// [TaskStep.fromPocketBaseJson], which the generated [fromJson] delegates to.
 @freezed
-class TaskStep with _$TaskStep {
+abstract class TaskStep with _$TaskStep {
   const factory TaskStep({
     required String id,
     required String name,
@@ -21,15 +22,12 @@ class TaskStep with _$TaskStep {
     // ignore: invalid_annotation_target
     @Default(false) final bool isCompleted,
 
-    /// Creation time, falling back to PocketBase's built-in `created` field
-    /// when the custom `createdAt` is missing or empty. If both are absent a
-    /// sentinel epoch is used so the UI never crashes on missing dates.
-    @JsonKey(fromJson: _parseCreatedAt, toJson: _formatCreatedAt)
+    /// Creation time. Decoded (with fallback to `created`) by
+    /// [fromPocketBaseJson] before the generated constructor runs, so the
+    /// plain [DateTime] type here never has to parse a missing/empty string.
     required final DateTime createdAt,
 
-    /// Last-update time, falling back to PocketBase's built-in `updated`
-    /// field under the same rules as [createdAt].
-    @JsonKey(fromJson: _parseUpdatedAt, toJson: _formatUpdatedAt)
+    /// Last-update time. Falls back to `updated` — see [createdAt].
     required final DateTime updatedAt,
 
     /// Id of the step that comes immediately before this one in the chain,
@@ -37,36 +35,38 @@ class TaskStep with _$TaskStep {
     final String? previousStepId,
   }) = _TaskStep;
 
+  /// Decodes a PocketBase step record into a [TaskStep], applying the
+  /// `createdAt`→`created` and `updatedAt`→`updated` fallback and the empty /
+  /// null-string date handling the original hand-written adaptor did.
+  ///
+  /// Without this fallback `DateTime.parse(null)` would throw and the whole
+  /// step list would fail to load when a collection only carries the built-in
+  /// audit fields.
   factory TaskStep.fromJson(Map<String, dynamic> json) =>
-      _$TaskStepFromJson(json);
-}
+      TaskStep.fromPocketBaseJson(json);
 
-/// Picks a non-empty value among [primary] and [fallback], falling back to a
-/// sentinel epoch so a totally missing date never throws `DateTime.parse(null)`.
-DateTime _parseDateWithFallback(
-  Map<String, dynamic> json,
-  String primary,
-  String fallback,
-) {
-  final primaryStr = json[primary] as String?;
-  if (primaryStr != null && primaryStr.isNotEmpty) {
-    return DateTime.parse(primaryStr);
+  factory TaskStep.fromPocketBaseJson(Map<String, dynamic> json) {
+    DateTime parseDate(String primary, String fallback) {
+      final primaryStr = json[primary] as String?;
+      if (primaryStr != null && primaryStr.isNotEmpty) {
+        return DateTime.parse(primaryStr);
+      }
+      final fallbackStr = json[fallback] as String?;
+      if (fallbackStr != null && fallbackStr.isNotEmpty) {
+        return DateTime.parse(fallbackStr);
+      }
+      // Last resort so the UI never crashes on missing dates.
+      return DateTime.fromMillisecondsSinceEpoch(0);
+    }
+
+    return TaskStep(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      taskId: json['taskId'] as String,
+      isCompleted: json['isCompleted'] as bool? ?? false,
+      createdAt: parseDate('createdAt', 'created'),
+      updatedAt: parseDate('updatedAt', 'updated'),
+      previousStepId: json['previousStepId'] as String?,
+    );
   }
-  final fallbackStr = json[fallback] as String?;
-  if (fallbackStr != null && fallbackStr.isNotEmpty) {
-    return DateTime.parse(fallbackStr);
-  }
-  // Last resort so the UI never crashes on missing dates.
-  return DateTime.fromMillisecondsSinceEpoch(0);
 }
-
-DateTime _parseCreatedAt(Map<String, dynamic> json) =>
-    _parseDateWithFallback(json, 'createdAt', 'created');
-
-DateTime _parseUpdatedAt(Map<String, dynamic> json) =>
-    _parseDateWithFallback(json, 'updatedAt', 'updated');
-
-// The toJson side mirrors the primary field names PocketBase stores, so the
-// original value round-trips through the custom `createdAt`/`updatedAt` keys.
-String _formatCreatedAt(DateTime value) => value.toIso8601String();
-String _formatUpdatedAt(DateTime value) => value.toIso8601String();

@@ -10,7 +10,7 @@ part 'task.g.dart';
 /// optional dates go through [_parseNullableDate] which treats `""` and `null`
 /// the same way (no value).
 @freezed
-class Task with _$Task {
+abstract class Task with _$Task {
   const factory Task({
     required String id,
     required String name,

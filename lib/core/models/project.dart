@@ -10,7 +10,7 @@ part 'project.g.dart';
 /// from task counts. `updatedAt` is kept fresh by PocketBase's autodate on
 /// every write (and by an explicit bump when a task is created under it).
 @freezed
-class Project with _$Project {
+abstract class Project with _$Project {
   const factory Project({
     required String id,
     required String name,
