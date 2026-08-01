@@ -1,3 +1,4 @@
+import 'package:project_todo/common/utils/step_orderer.dart';
 import 'package:project_todo/core/log/logger.dart';
 import 'package:project_todo/core/models/project.dart';
 import 'package:project_todo/core/models/task.dart';
@@ -666,59 +667,4 @@ class ApiService {
       apiLogger.warning('Error when bumping project updatedAt', e);
     }
   }
-}
-
-/// Reconstructs the linear step chain from `previousStepId` links.
-///
-/// Heads (no valid predecessor) are walked forward in stable insertion order,
-/// with a cycle guard and a safety net that appends any unreached step so
-/// nothing is silently dropped. Exposed at the top level (not as a private
-/// method) so both the network layer and the step page can share one
-/// implementation.
-List<TaskStep> orderSteps(List<TaskStep> steps) {
-  if (steps.isEmpty) return steps;
-
-  final byId = {for (final s in steps) s.id: s};
-
-  final successorOf = <String, TaskStep>{};
-  final heads = <TaskStep>[];
-
-  for (final s in steps) {
-    final prev = s.previousStepId;
-    final hasValidPrev =
-        prev != null && byId.containsKey(prev) && prev != s.id;
-    if (!hasValidPrev) {
-      heads.add(s);
-    } else {
-      successorOf.putIfAbsent(prev, () => s);
-    }
-  }
-
-  final ordered = <TaskStep>[];
-  final visited = <String>{};
-
-  void walk(TaskStep current) {
-    var node = current;
-    while (true) {
-      if (visited.contains(node.id)) return; // cycle guard
-      visited.add(node.id);
-      ordered.add(node);
-      final next = successorOf[node.id];
-      if (next == null) return;
-      node = next;
-    }
-  }
-
-  for (final head in heads) {
-    walk(head);
-  }
-
-  // Safety net: append any step not reached on degenerate data.
-  for (final s in steps) {
-    if (!visited.contains(s.id)) {
-      ordered.add(s);
-    }
-  }
-
-  return ordered;
 }
