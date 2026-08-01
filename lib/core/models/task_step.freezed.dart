@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$TaskStep {
 
- String get id; String get name; String get taskId;// ignore: invalid_annotation_target
+ String get id; String get name; String get taskId;
  bool get isCompleted;/// Creation time. Decoded (with fallback to `created`) by
 /// [fromPocketBaseJson] before the generated constructor runs, so the
 /// plain [DateTime] type here never has to parse a missing/empty string.
@@ -228,7 +228,6 @@ class _TaskStep implements TaskStep {
 @override final  String id;
 @override final  String name;
 @override final  String taskId;
-// ignore: invalid_annotation_target
 @override@JsonKey() final  bool isCompleted;
 /// Creation time. Decoded (with fallback to `created`) by
 /// [fromPocketBaseJson] before the generated constructor runs, so the

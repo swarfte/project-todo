@@ -32,7 +32,6 @@ abstract class Task with _$Task {
     final DateTime? completedAt,
 
     /// Whether the task's descendants are currently hidden in the UI.
-    // ignore: invalid_annotation_target
     @Default(false) final bool isFolded,
   }) = _Task;
 

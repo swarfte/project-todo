@@ -19,7 +19,6 @@ abstract class TaskStep with _$TaskStep {
     required String name,
     required String taskId,
 
-    // ignore: invalid_annotation_target
     @Default(false) final bool isCompleted,
 
     /// Creation time. Decoded (with fallback to `created`) by
