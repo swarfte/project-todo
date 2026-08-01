@@ -41,6 +41,42 @@ class StepsNotifier extends AsyncNotifier<StepsView> {
     ref.invalidateSelf();
   }
 
+  /// Refreshes this task's chain *and* notifies the owning task tree.
+  ///
+  /// Step mutations change the task's step counts, which the task page reads via
+  /// [tasksProvider]'s `stepCounts`. [tasksProvider] is long-lived
+  /// (non-autoDispose) and parameterised by `projectId`, so without invalidating
+  /// it here it keeps showing stale counts — e.g. finish a step, press back, and
+  /// the task page's step indicator still reads the old number. We don't know
+  /// the task's `projectId` here (the router carries only the id), so we look it
+  /// up from any loaded task tree via [_lookupProjectId]; if no tree is loaded
+  /// the task page will rebuild from scratch on next entry anyway.
+  Future<void> _afterMutation() async {
+    await reload();
+    final projectId = _lookupProjectId();
+    if (projectId != null) {
+      ref.invalidate(tasksProvider(projectId));
+    }
+  }
+
+  /// Finds the project that owns [taskId] by scanning currently-loaded task
+  /// trees. Returns null if no tree has been loaded yet (the parent task page
+  /// is on the stack when the step page is open, so this normally resolves).
+  String? _lookupProjectId() {
+    final projectsView = ref.read(projectsProvider).value;
+    if (projectsView == null) return null;
+    for (final row in projectsView.rows) {
+      final tasksView = ref.read(tasksProvider(row.project.id)).value;
+      if (tasksView == null) continue;
+      for (final tree in tasksView.trees) {
+        for (final node in tree) {
+          if (node.task.id == taskId) return row.project.id;
+        }
+      }
+    }
+    return null;
+  }
+
   Future<ApiResult<bool>> createStep(
     String name, {
     String? previousStepId,
@@ -48,7 +84,7 @@ class StepsNotifier extends AsyncNotifier<StepsView> {
     final result = await ref
         .read(apiServiceProvider)
         .createStep(name, taskId, previousStepId: previousStepId);
-    if (result.isSuccess) await reload();
+    if (result.isSuccess) await _afterMutation();
     return result;
   }
 
@@ -56,19 +92,19 @@ class StepsNotifier extends AsyncNotifier<StepsView> {
   Future<ApiResult<bool>> insertStep(String name, TaskStep afterStep) async {
     final result =
         await ref.read(apiServiceProvider).insertStep(name, afterStep);
-    if (result.isSuccess) await reload();
+    if (result.isSuccess) await _afterMutation();
     return result;
   }
 
   Future<ApiResult<bool>> updateStep(TaskStep step) async {
     final result = await ref.read(apiServiceProvider).updateStep(step);
-    if (result.isSuccess) await reload();
+    if (result.isSuccess) await _afterMutation();
     return result;
   }
 
   Future<ApiResult<bool>> deleteStep(String stepId) async {
     final result = await ref.read(apiServiceProvider).deleteStep(stepId);
-    if (result.isSuccess) await reload();
+    if (result.isSuccess) await _afterMutation();
     return result;
   }
 
@@ -76,7 +112,7 @@ class StepsNotifier extends AsyncNotifier<StepsView> {
   /// actually reset (individual failures are logged but don't abort the batch).
   Future<ApiResult<int>> unfinishAll() async {
     final result = await ref.read(apiServiceProvider).unfinishAllSteps(taskId);
-    if (result.isSuccess) await reload();
+    if (result.isSuccess) await _afterMutation();
     return result;
   }
 }

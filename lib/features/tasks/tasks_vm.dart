@@ -49,10 +49,7 @@ class TasksNotifier extends AsyncNotifier<TasksView> {
     final tasks = tasksResult.dataOrNull ?? const [];
     final counts = countsResult.dataOrNull ?? const {};
 
-    return TasksView(
-      trees: buildTaskForest(tasks, counts),
-      stepCounts: counts,
-    );
+    return TasksView(trees: buildTaskForest(tasks, counts), stepCounts: counts);
   }
 
   /// Re-runs [build] to refresh the tree. `ref.invalidateSelf()` preserves the
@@ -61,36 +58,52 @@ class TasksNotifier extends AsyncNotifier<TasksView> {
     ref.invalidateSelf();
   }
 
+  /// Refreshes this project's tree *and* notifies the parent projects view.
+  ///
+  /// Task mutations (create/update/delete/duplicate) change this project's task
+  /// counts, which the projects page derives its completion indicator from.
+  /// [projectsProvider] is long-lived (non-autoDispose), so without invalidating
+  /// it here it keeps showing stale counts — e.g. create a task, press back, and
+  /// the projects list still reads "0/0". Invalidating it now means it is fresh
+  /// by the time the user navigates back. Safe to call while the projects page
+  /// isn't mounted: invalidate just marks it stale and it rebuilds on next view.
+  Future<void> _afterMutation() async {
+    await reload();
+    ref.invalidate(projectsProvider);
+  }
+
   Future<ApiResult<bool>> createTask(
     String name, {
     String? previousTaskId,
     DateTime? dueDate,
   }) async {
-    final result = await ref.read(apiServiceProvider).createTask(
+    final result = await ref
+        .read(apiServiceProvider)
+        .createTask(
           name,
           projectId,
           previousTaskId: previousTaskId,
           dueDate: dueDate,
         );
-    if (result.isSuccess) await reload();
+    if (result.isSuccess) await _afterMutation();
     return result;
   }
 
   Future<ApiResult<bool>> updateTask(Task task) async {
     final result = await ref.read(apiServiceProvider).updateTask(task);
-    if (result.isSuccess) await reload();
+    if (result.isSuccess) await _afterMutation();
     return result;
   }
 
   Future<ApiResult<bool>> deleteTask(String taskId) async {
     final result = await ref.read(apiServiceProvider).deleteTask(taskId);
-    if (result.isSuccess) await reload();
+    if (result.isSuccess) await _afterMutation();
     return result;
   }
 
   Future<ApiResult<String?>> duplicateTask(Task original) async {
     final result = await ref.read(apiServiceProvider).duplicateTask(original);
-    if (result.isSuccess) await reload();
+    if (result.isSuccess) await _afterMutation();
     return result;
   }
 }
@@ -99,13 +112,15 @@ class TasksNotifier extends AsyncNotifier<TasksView> {
 /// type is internal to Riverpod, so we let `final` infer it.
 final tasksProvider =
     AsyncNotifierProvider.family<TasksNotifier, TasksView, String>(
-  TasksNotifier.new,
-);
+      TasksNotifier.new,
+    );
 
 /// The set of tasks belonging to [projectId], unflattened, so the create/edit
 /// dialogs can populate a "previous task" selector without refetching.
-final taskListProvider =
-    Provider.family<List<Task>, String>((ref, String projectId) {
+final taskListProvider = Provider.family<List<Task>, String>((
+  ref,
+  String projectId,
+) {
   final asyncView = ref.watch(tasksProvider(projectId));
   final view = asyncView.value;
   if (view == null) return const [];
@@ -125,8 +140,10 @@ final taskListProvider =
 /// Looks up a single [Project] by id from the projects list, so the task page
 /// can show the project name in its AppBar without the router passing a whole
 /// object. Returns null if the project isn't loaded (yet).
-final projectMetaProvider =
-    Provider.family<Project?, String>((ref, String projectId) {
+final projectMetaProvider = Provider.family<Project?, String>((
+  ref,
+  String projectId,
+) {
   final view = ref.watch(projectsProvider).value;
   if (view == null) return null;
   for (final row in view.rows) {
