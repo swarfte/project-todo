@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:project_todo/api.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:project_todo/common/widgets/error_message_box.dart';
 import 'package:project_todo/common/widgets/success_snackbar.dart';
-import 'package:project_todo/models.dart';
+import 'package:project_todo/core/models/project.dart';
+import 'package:project_todo/features/projects/projects_vm.dart';
 
-class EditProjectDialog extends StatefulWidget {
+class EditProjectDialog extends ConsumerStatefulWidget {
   const EditProjectDialog({super.key, required this.project});
 
   final Project project;
 
   @override
-  State<EditProjectDialog> createState() => _EditProjectDialogState();
+  ConsumerState<EditProjectDialog> createState() => _EditProjectDialogState();
 }
 
-class _EditProjectDialogState extends State<EditProjectDialog> {
+class _EditProjectDialogState extends ConsumerState<EditProjectDialog> {
   late final TextEditingController _nameController;
 
   String? _errorMessage;
@@ -49,46 +50,30 @@ class _EditProjectDialogState extends State<EditProjectDialog> {
       _errorMessage = null;
     });
 
-    try {
-      final apiService = APIService();
-      final updated = Project(
-        id: widget.project.id,
-        name: projectName,
-        userId: widget.project.userId,
-        createdAt: widget.project.createdAt,
-        updatedAt: widget.project.updatedAt,
-      );
+    final updated = widget.project.copyWith(name: projectName);
+    final result =
+        await ref.read(projectsProvider.notifier).updateProject(updated);
 
-      final isSuccess = await apiService.updateProject(updated);
+    // The dialog may have been removed while waiting for the API.
+    if (!mounted) return;
 
-      // The dialog may have been removed while waiting for the API.
-      if (!mounted) return;
-
-      if (!isSuccess) {
-        setState(() {
-          _isSending = false;
-          _errorMessage = 'Failed to update project.';
-        });
-        return;
-      }
-
-      // Get the messenger before closing the dialog.
-      final messenger = ScaffoldMessenger.of(context);
-
-      Navigator.of(context).pop();
-
-      SuccessSnackBar.show(
-        messenger,
-        message: 'Project "$projectName" updated successfully.',
-      );
-    } catch (error) {
-      if (!mounted) return;
-
+    if (result.isFailure) {
       setState(() {
         _isSending = false;
-        _errorMessage = 'Failed to update project. Please try again.';
+        _errorMessage = 'Failed to update project.';
       });
+      return;
     }
+
+    // Get the messenger before closing the dialog.
+    final messenger = ScaffoldMessenger.of(context);
+
+    Navigator.of(context).pop();
+
+    SuccessSnackBar.show(
+      messenger,
+      message: 'Project "$projectName" updated successfully.',
+    );
   }
 
   @override

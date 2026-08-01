@@ -1,19 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:project_todo/api.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:project_todo/common/widgets/error_message_box.dart';
 import 'package:project_todo/common/widgets/success_snackbar.dart';
-import 'package:project_todo/models.dart';
+import 'package:project_todo/core/models/task_step.dart';
+import 'package:project_todo/features/steps/steps_vm.dart';
 
-class EditStepDialog extends StatefulWidget {
-  const EditStepDialog({super.key, required this.step});
+class EditStepDialog extends ConsumerStatefulWidget {
+  const EditStepDialog({
+    super.key,
+    required this.taskId,
+    required this.step,
+  });
 
+  final String taskId;
   final TaskStep step;
 
   @override
-  State<EditStepDialog> createState() => _EditStepDialogState();
+  ConsumerState<EditStepDialog> createState() => _EditStepDialogState();
 }
 
-class _EditStepDialogState extends State<EditStepDialog> {
+class _EditStepDialogState extends ConsumerState<EditStepDialog> {
   late final TextEditingController _nameController;
   late bool _isCompleted;
 
@@ -51,48 +57,30 @@ class _EditStepDialogState extends State<EditStepDialog> {
       _errorMessage = null;
     });
 
-    try {
-      final apiService = APIService();
-      final updated = TaskStep(
-        id: widget.step.id,
-        name: name,
-        taskId: widget.step.taskId,
-        isCompleted: _isCompleted,
-        createdAt: widget.step.createdAt,
-        updatedAt: widget.step.updatedAt,
-        previousStepId: widget.step.previousStepId,
-      );
+    final result = await ref
+        .read(stepsProvider(widget.taskId).notifier)
+        .updateStep(
+          widget.step.copyWith(name: name, isCompleted: _isCompleted),
+        );
 
-      final isSuccess = await apiService.updateStep(updated);
+    if (!mounted) return;
 
-      // The dialog may have been removed while waiting for the API.
-      if (!mounted) return;
-
-      if (!isSuccess) {
-        setState(() {
-          _isSending = false;
-          _errorMessage = 'Failed to update step.';
-        });
-        return;
-      }
-
-      // Get the messenger before closing the dialog.
-      final messenger = ScaffoldMessenger.of(context);
-
-      Navigator.of(context).pop();
-
-      SuccessSnackBar.show(
-        messenger,
-        message: 'Step "$name" updated successfully.',
-      );
-    } catch (error) {
-      if (!mounted) return;
-
+    if (result.isFailure) {
       setState(() {
         _isSending = false;
-        _errorMessage = 'Failed to update step. Please try again.';
+        _errorMessage = 'Failed to update step.';
       });
+      return;
     }
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    Navigator.of(context).pop();
+
+    SuccessSnackBar.show(
+      messenger,
+      message: 'Step "$name" updated successfully.',
+    );
   }
 
   @override

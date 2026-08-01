@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:project_todo/core/storage/preferences.dart';
-import 'package:project_todo/api.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:project_todo/common/widgets/app_version.dart';
 import 'package:project_todo/common/widgets/error_message_box.dart';
 import 'package:project_todo/common/widgets/loading_progress_bar.dart';
 import 'package:project_todo/common/widgets/success_snackbar.dart';
+import 'package:project_todo/core/state/network_providers.dart';
 
-class SettingDialog extends StatefulWidget {
+class SettingDialog extends ConsumerStatefulWidget {
   const SettingDialog({super.key});
 
   @override
-  State<SettingDialog> createState() => _SettingDialogState();
+  ConsumerState<SettingDialog> createState() => _SettingDialogState();
 }
 
-class _SettingDialogState extends State<SettingDialog> {
+class _SettingDialogState extends ConsumerState<SettingDialog> {
   final TextEditingController _apiUrlController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -28,7 +28,7 @@ class _SettingDialogState extends State<SettingDialog> {
   }
 
   Future<void> _loadConfig() async {
-    final configService = ConfigService();
+    final configService = ref.read(configServiceProvider);
 
     final apiUrl = await configService.getApiUrl();
     final username = await configService.getUsername();
@@ -64,18 +64,18 @@ class _SettingDialogState extends State<SettingDialog> {
     });
 
     try {
-      final configService = ConfigService();
+      final configService = ref.read(configServiceProvider);
 
       await configService.saveApiUrl(apiUrl);
       await configService.saveUsername(username);
       await configService.savePassword(password);
 
-      final apiService = APIService();
-      final isSuccess = await apiService.connectDB();
+      // Test the new credentials by establishing a fresh connection.
+      final result = await ref.read(apiServiceProvider).connect();
 
       if (!mounted) return;
 
-      if (!isSuccess) {
+      if (result.isFailure) {
         setState(() {
           _isSaving = false;
           _errorMessage =

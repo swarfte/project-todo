@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:project_todo/api.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:project_todo/common/widgets/error_message_box.dart';
 import 'package:project_todo/common/widgets/success_snackbar.dart';
+import 'package:project_todo/features/steps/steps_vm.dart';
 
-class CreateStepDialog extends StatefulWidget {
+class CreateStepDialog extends ConsumerStatefulWidget {
   const CreateStepDialog({
     super.key,
     required this.taskId,
@@ -21,18 +22,18 @@ class CreateStepDialog extends StatefulWidget {
   /// Display name of the previous step, used only for the hint line.
   final String? previousStepName;
 
-  /// When provided, the dialog delegates the actual creation to this
-  /// callback instead of calling `createStep` directly. Used for insert
-  /// mode, where the caller needs to splice the new step into the middle
-  /// of the chain (create + re-link successor). The callback returns true
-  /// on success; the dialog handles the success snackbar + pop.
+  /// When provided, the dialog delegates the actual creation to this callback
+  /// instead of calling the VM's `createStep` directly. Used for insert mode,
+  /// where the caller needs to splice the new step into the middle of the
+  /// chain (create + re-link successor). The callback returns true on success;
+  /// the dialog handles the success snackbar + pop.
   final Future<bool> Function(String name)? onSubmit;
 
   @override
-  State<CreateStepDialog> createState() => _CreateStepDialogState();
+  ConsumerState<CreateStepDialog> createState() => _CreateStepDialogState();
 }
 
-class _CreateStepDialogState extends State<CreateStepDialog> {
+class _CreateStepDialogState extends ConsumerState<CreateStepDialog> {
   final TextEditingController _nameController = TextEditingController();
 
   String? _errorMessage;
@@ -62,52 +63,43 @@ class _CreateStepDialogState extends State<CreateStepDialog> {
       _errorMessage = null;
     });
 
-    try {
-      // Delegate to the caller's callback when provided (insert mode);
-      // otherwise do a plain append via the API service.
-      final isSuccess = widget.onSubmit != null
-          ? await widget.onSubmit!(name)
-          : await APIService().createStep(
-              name,
-              widget.taskId,
-              previousStepId: widget.previousStepId,
-            );
+    // Delegate to the caller's callback when provided (insert mode); otherwise
+    // do a plain append through the VM.
+    final isSuccess = widget.onSubmit != null
+        ? await widget.onSubmit!(name)
+        : (await ref
+                .read(stepsProvider(widget.taskId).notifier)
+                .createStep(
+                  name,
+                  previousStepId: widget.previousStepId,
+                ))
+            .isSuccess;
 
-      // The dialog may have been removed while waiting for the API.
-      if (!mounted) return;
+    if (!mounted) return;
 
-      if (!isSuccess) {
-        setState(() {
-          _isSending = false;
-          _errorMessage = 'Failed to create step.';
-        });
-        return;
-      }
-
-      // Get the messenger before closing the dialog.
-      final messenger = ScaffoldMessenger.of(context);
-
-      Navigator.of(context).pop();
-
-      SuccessSnackBar.show(
-        messenger,
-        message: 'Step "$name" created successfully.',
-      );
-    } catch (error) {
-      if (!mounted) return;
-
+    if (!isSuccess) {
       setState(() {
         _isSending = false;
-        _errorMessage = 'Failed to create step. Please try again.';
+        _errorMessage = 'Failed to create step.';
       });
+      return;
     }
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    Navigator.of(context).pop();
+
+    SuccessSnackBar.show(
+      messenger,
+      message: 'Step "$name" created successfully.',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Insert mode is signalled by the caller passing an onSubmit callback;
-    // it changes the title and hint to describe a mid-chain splice rather
-    // than a plain append.
+    // Insert mode is signalled by the caller passing an onSubmit callback; it
+    // changes the title and hint to describe a mid-chain splice rather than a
+    // plain append.
     final isInsert = widget.onSubmit != null;
 
     return AlertDialog(
@@ -129,8 +121,8 @@ class _CreateStepDialogState extends State<CreateStepDialog> {
               widget.previousStepId == null
                   ? 'This will be the first step in the chain.'
                   : isInsert
-                  ? 'Inserting after "${widget.previousStepName}". The steps that follow will shift down.'
-                  : 'This step will come after "${widget.previousStepName}".',
+                      ? 'Inserting after "${widget.previousStepName}". The steps that follow will shift down.'
+                      : 'This step will come after "${widget.previousStepName}".',
               style: TextStyle(color: Colors.grey[600], fontSize: 13),
             ),
 

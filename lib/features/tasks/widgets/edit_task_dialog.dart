@@ -1,36 +1,33 @@
 import 'package:flutter/material.dart';
-import 'package:project_todo/api.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:project_todo/common/widgets/error_message_box.dart';
 import 'package:project_todo/common/widgets/success_snackbar.dart';
-import 'package:project_todo/models.dart';
+import 'package:project_todo/core/models/task.dart';
+import 'package:project_todo/features/tasks/tasks_vm.dart';
 
-class EditTaskDialog extends StatefulWidget {
+class EditTaskDialog extends ConsumerStatefulWidget {
   const EditTaskDialog({
     super.key,
+    required this.projectId,
     required this.task,
-    this.existingTasks = const [],
   });
 
+  final String projectId;
   final Task task;
 
-  // Other tasks in the same project. Used to populate the
-  // "previous task" selector so the dialog doesn't need to refetch.
-  final List<Task> existingTasks;
-
   @override
-  State<EditTaskDialog> createState() => _EditTaskDialogState();
+  ConsumerState<EditTaskDialog> createState() => _EditTaskDialogState();
 }
 
-class _EditTaskDialogState extends State<EditTaskDialog> {
+class _EditTaskDialogState extends ConsumerState<EditTaskDialog> {
   late final TextEditingController _nameController;
-  late bool _isCompleted;
 
   // Optional due date. null means the task has no deadline.
   DateTime? _dueDate;
 
-  // The task that comes immediately before this one. null means the
-  // task is a starting point (no predecessor). Pre-seeded from the
-  // task's current previousTaskId if it points to a known task.
+  // The task that comes immediately before this one. null means the task is a
+  // starting point (no predecessor). Pre-seeded from the task's current
+  // previousTaskId if it points to a known task.
   late Task? _selectedPreviousTask;
 
   String? _errorMessage;
@@ -40,18 +37,18 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.task.name);
-    _isCompleted = widget.task.isCompleted;
     _dueDate = widget.task.dueDate;
     _selectedPreviousTask = _resolveInitialPreviousTask();
   }
 
-  // Finds the Task object matching the task's current previousTaskId, so
-  // the dropdown can show the existing predecessor. Falls back to null
-  // (start of chain) if the id is missing or no longer exists.
+  // Finds the Task object matching the task's current previousTaskId, so the
+  // dropdown can show the existing predecessor. Falls back to null (start of
+  // chain) if the id is missing or no longer exists.
   Task? _resolveInitialPreviousTask() {
     final prevId = widget.task.previousTaskId;
     if (prevId == null) return null;
-    for (final t in widget.existingTasks) {
+    final existing = ref.read(taskListProvider(widget.projectId));
+    for (final t in existing) {
       if (t.id == prevId) return t;
     }
     return null;
@@ -105,62 +102,42 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
       _errorMessage = null;
     });
 
-    try {
-      final apiService = APIService();
-      final updated = Task(
-        id: widget.task.id,
-        name: taskName,
-        projectId: widget.task.projectId,
-        isCompleted: _isCompleted,
-        createdAt: widget.task.createdAt,
-        updatedAt: widget.task.updatedAt,
-        dueDate: _dueDate,
-        previousTaskId: _selectedPreviousTask?.id,
-        completedAt: _isCompleted
-            ? (widget.task.completedAt ?? DateTime.now())
-            : null,
-        isFolded: widget.task.isFolded,
-      );
+    final updated = widget.task.copyWith(
+      name: taskName,
+      dueDate: _dueDate,
+      previousTaskId: _selectedPreviousTask?.id,
+    );
+    final result = await ref
+        .read(tasksProvider(widget.projectId).notifier)
+        .updateTask(updated);
 
-      final isSuccess = await apiService.updateTask(updated);
+    if (!mounted) return;
 
-      // The dialog may have been removed while waiting for the API.
-      if (!mounted) return;
-
-      if (!isSuccess) {
-        setState(() {
-          _isSending = false;
-          _errorMessage = 'Failed to update task.';
-        });
-        return;
-      }
-
-      // Get the messenger before closing the dialog.
-      final messenger = ScaffoldMessenger.of(context);
-
-      Navigator.of(context).pop();
-
-      SuccessSnackBar.show(
-        messenger,
-        message: 'Task "$taskName" updated successfully.',
-      );
-    } catch (error) {
-      if (!mounted) return;
-
+    if (result.isFailure) {
       setState(() {
         _isSending = false;
-        _errorMessage = 'Failed to update task. Please try again.';
+        _errorMessage = 'Failed to update task.';
       });
+      return;
     }
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    Navigator.of(context).pop();
+
+    SuccessSnackBar.show(
+      messenger,
+      message: 'Task "$taskName" updated successfully.',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Candidate predecessors: every task in the project except the one
-    // being edited (a task can't be its own predecessor).
-    final candidates = widget.existingTasks
-        .where((t) => t.id != widget.task.id)
-        .toList();
+    // Candidate predecessors: every task in the project except the one being
+    // edited (a task can't be its own predecessor).
+    final existingTasks = ref.watch(taskListProvider(widget.projectId));
+    final candidates =
+        existingTasks.where((t) => t.id != widget.task.id).toList();
 
     return AlertDialog(
       title: const Text('Edit Task'),
@@ -202,7 +179,7 @@ class _EditTaskDialogState extends State<EditTaskDialog> {
                 ],
                 onChanged: _isSending
                     ? null
-                    : (Task? value) {
+                    : (value) {
                         setState(() {
                           _selectedPreviousTask = value;
                         });

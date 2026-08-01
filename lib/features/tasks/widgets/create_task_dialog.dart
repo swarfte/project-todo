@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:project_todo/api.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:project_todo/common/widgets/error_message_box.dart';
 import 'package:project_todo/common/widgets/success_snackbar.dart';
-import 'package:project_todo/models.dart';
+import 'package:project_todo/core/models/task.dart';
+import 'package:project_todo/features/tasks/tasks_vm.dart';
 
-class CreateTaskDialog extends StatefulWidget {
+class CreateTaskDialog extends ConsumerStatefulWidget {
   const CreateTaskDialog({
     super.key,
     required this.projectId,
     this.previousTask,
-    this.existingTasks = const [],
   });
 
   final String projectId;
@@ -19,27 +19,20 @@ class CreateTaskDialog extends StatefulWidget {
   /// the caller (e.g. the per-task "add subtask" shortcut).
   final Task? previousTask;
 
-  // Tasks already belonging to this project. Used to populate the
-  // "previous task" selector so the dialog doesn't need to refetch.
-  // Ignored when [previousTask] is set.
-  final List<Task> existingTasks;
-
   @override
-  State<CreateTaskDialog> createState() => _CreateTaskDialogState();
+  ConsumerState<CreateTaskDialog> createState() => _CreateTaskDialogState();
 }
 
-class _CreateTaskDialogState extends State<CreateTaskDialog> {
+class _CreateTaskDialogState extends ConsumerState<CreateTaskDialog> {
   final TextEditingController _taskNameController = TextEditingController();
 
   String? _errorMessage;
   bool _isSending = false;
 
-  // The task that comes immediately before the new one. null means the
-  // new task is a starting point (no predecessor). Pre-seeded from
+  // The task that comes immediately before the new one. null means the new
+  // task is a starting point (no predecessor). Pre-seeded from
   // widget.previousTask when the dialog is opened as a subtask creator.
-  // Initialized in initState because `widget` isn't available at field
-  // initializer time; `late final` enforces the one-time assignment.
-  late final Task? _selectedPreviousTask;
+  late Task? _selectedPreviousTask;
 
   // Optional due date. null means the task has no deadline.
   DateTime? _dueDate;
@@ -57,8 +50,6 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
   }
 
   // Opens a date picker so the user can choose an optional due date.
-  // Selecting the same date as the current value clears it (treats the
-  // tap as a toggle), letting the user opt out of a due date.
   Future<void> _pickDueDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -100,53 +91,41 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
       _errorMessage = null;
     });
 
-    try {
-      final apiService = APIService();
-      final isSuccess = await apiService.createTask(
-        taskName,
-        widget.projectId,
-        previousTaskId: _selectedPreviousTask?.id,
-        dueDate: _dueDate,
-      );
+    final result = await ref
+        .read(tasksProvider(widget.projectId).notifier)
+        .createTask(
+          taskName,
+          previousTaskId: _selectedPreviousTask?.id,
+          dueDate: _dueDate,
+        );
 
-      // The dialog may have been removed while waiting for the API.
-      if (!mounted) return;
+    if (!mounted) return;
 
-      if (!isSuccess) {
-        setState(() {
-          _isSending = false;
-          _errorMessage = 'Failed to create task.';
-        });
-        return;
-      }
-
-      // Get the messenger before closing the dialog.
-      final messenger = ScaffoldMessenger.of(context);
-
-      Navigator.of(context).pop();
-
-      SuccessSnackBar.show(
-        messenger,
-        message: 'Task $taskName created successfully.',
-      );
-    } catch (error) {
-      if (!mounted) return;
-
+    if (result.isFailure) {
       setState(() {
         _isSending = false;
-        _errorMessage = 'Failed to create task. Please try again.';
+        _errorMessage = 'Failed to create task.';
       });
+      return;
     }
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    Navigator.of(context).pop();
+
+    SuccessSnackBar.show(
+      messenger,
+      message: 'Task $taskName created successfully.',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     // The predecessor is fixed when the dialog is opened as a subtask
-    // creator; only show the selector when it is free to choose.
+    // creator; only show the selector when it is free to choose. When free,
+    // populate it from the project's loaded task list.
     final hasFixedPrevious = widget.previousTask != null;
-    // When there are no existing tasks yet, there is nothing to select.
-    final canSelectPrevious =
-        !hasFixedPrevious && widget.existingTasks.isNotEmpty;
+    final existingTasks = ref.watch(taskListProvider(widget.projectId));
 
     return AlertDialog(
       title: Text(hasFixedPrevious ? 'Create Subtask' : 'Create New Task'),
@@ -169,12 +148,42 @@ class _CreateTaskDialogState extends State<CreateTaskDialog> {
                 'This task will come after "${_selectedPreviousTask!.name}".',
                 style: TextStyle(color: Colors.grey[600], fontSize: 13),
               ),
-            ] else if (canSelectPrevious) ...[
+            ] else if (existingTasks.isNotEmpty) ...[
               // Previous task selector.
+              DropdownButtonFormField<Task?>(
+                initialValue: _selectedPreviousTask,
+                decoration: const InputDecoration(
+                  labelText: 'Previous Task',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  DropdownMenuItem<Task?>(
+                    value: null,
+                    child: Text(
+                      'None (start of chain)',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ),
+                  ...existingTasks.map(
+                    (task) => DropdownMenuItem<Task?>(
+                      value: task,
+                      child: Text(task.name),
+                    ),
+                  ),
+                ],
+                onChanged: _isSending
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _selectedPreviousTask = value;
+                        });
+                      },
+              ),
+              const SizedBox(height: 8),
               Text(
                 _selectedPreviousTask == null
                     ? 'This task will start a new chain.'
-                    : 'This task will come after "${_selectedPreviousTask.name}".',
+                    : 'This task will come after "${_selectedPreviousTask!.name}".',
                 style: TextStyle(color: Colors.grey[600], fontSize: 13),
               ),
             ] else ...[
