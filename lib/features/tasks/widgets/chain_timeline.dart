@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:project_todo/models.dart';
+import 'package:project_todo/common/utils/task_forest.dart';
+import 'package:project_todo/core/models/task.dart';
 
 /// Returns the color for a task's due date based on its urgency:
 /// - Red: overdue or due today.
@@ -20,45 +21,6 @@ Color dueDateColor(DateTime dueDate) {
   }
 
   return Colors.green;
-}
-
-/// One node in a flattened task tree, ready to render.
-///
-/// The tree is walked in pre-order; each entry remembers how deep it sits
-/// and where it falls among its siblings so the gutter can draw indent
-/// guides and elbow connectors (├── / └── / │) like a file-tree view.
-class FlatTaskNode {
-  const FlatTaskNode({
-    required this.task,
-    required this.depth,
-    required this.isLastChild,
-    required this.hasChildren,
-    required this.ancestorIsLast,
-    required this.isFolded,
-  });
-
-  final Task task;
-
-  /// 0 for a root, +1 for each level of nesting.
-  final int depth;
-
-  /// Whether this is the last successor of its parent. Determines whether
-  /// the parent elbow continues down to a younger sibling.
-  final bool isLastChild;
-
-  /// Whether this node has any successors itself. Drives the drop line
-  /// below the badge that connects to its first child.
-  final bool hasChildren;
-
-  /// For each ancestor level (0..depth-1), whether that ancestor was the
-  /// last child of its own parent. Used to decide whether each ancestor's
-  /// vertical spine should keep going past this row.
-  final List<bool> ancestorIsLast;
-
-  /// Whether this node's children are currently hidden. When true the
-  /// drop-line below the badge is not drawn (children aren't rendered) and
-  /// the chevron points right instead of down.
-  final bool isFolded;
 }
 
 /// Renders one task tree as an indented timeline. A predecessor can have
