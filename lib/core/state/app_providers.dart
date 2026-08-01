@@ -1,6 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:project_todo/core/platform/window_pin.dart';
 import 'package:project_todo/core/state/network_providers.dart';
-import 'package:window_manager/window_manager.dart';
+
+/// The single [WindowPin] instance used across the app.
+///
+/// Resolves to the real `window_manager`-backed implementation on desktop
+/// native builds, and to the no-op stub on web/Android (where the feature is
+/// disabled). Centralised here so [main.dart], [AlwaysOnTopNotifier] and
+/// [PinWindowButton] all agree on whether the feature is available.
+final WindowPin windowPin = const WindowPin();
 
 /// App-wide, persisted "always on top" window state.
 ///
@@ -9,6 +17,10 @@ import 'package:window_manager/window_manager.dart';
 /// every page's pin button subscribes to the same source of truth and the
 /// choice survives restarts via [ConfigService] (read through
 /// [configServiceProvider] using the notifier's [ref]).
+///
+/// The window call is delegated to [windowPin], which is a no-op on platforms
+/// where the feature isn't supported (Android, web); the persisted preference
+/// is still read/written everywhere so the choice round-trips on desktop.
 class AlwaysOnTopNotifier extends Notifier<bool> {
   @override
   bool build() => false;
@@ -19,14 +31,14 @@ class AlwaysOnTopNotifier extends Notifier<bool> {
   /// persisted value asynchronously.
   Future<void> load() async {
     final value = await ref.read(configServiceProvider).getAlwaysOnTop();
-    await windowManager.setAlwaysOnTop(value);
+    await windowPin.setAlwaysOnTop(value);
     state = value;
   }
 
   /// Toggles the flag, persists it, and updates the window immediately.
   Future<void> toggle() async {
     final value = !state;
-    await windowManager.setAlwaysOnTop(value);
+    await windowPin.setAlwaysOnTop(value);
     await ref.read(configServiceProvider).saveAlwaysOnTop(value);
     state = value;
   }
