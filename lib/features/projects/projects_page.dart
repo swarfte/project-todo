@@ -16,8 +16,23 @@ import 'package:project_todo/features/projects/widgets/setting_dialog.dart';
 /// resulting [ProjectsView]. All data access and mutations go through the VM,
 /// so this widget holds no API or business logic — it only maps state to UI
 /// and forwards user actions back to the VM.
-class ProjectsPage extends ConsumerWidget {
+///
+/// A project counts as "completed" once it has at least one task and every
+/// task is done (see [ProjectRow.isCompleted]). Completed projects are hidden
+/// by default to keep the list focused on what's left to do; the eye toggle in
+/// the app bar reveals them. The toggle is UI-only state — it doesn't need to
+/// survive a restart, so it lives here rather than in [ConfigService].
+class ProjectsPage extends ConsumerStatefulWidget {
   const ProjectsPage({super.key});
+
+  @override
+  ConsumerState<ProjectsPage> createState() => _ProjectsPageState();
+}
+
+class _ProjectsPageState extends ConsumerState<ProjectsPage> {
+  /// When `true` (the default) completed projects are folded out of the list.
+  /// Flipped by the app-bar eye toggle and the in-list reveal affordances.
+  bool _hideCompleted = true;
 
   Future<void> _openCreateProjectDialog(BuildContext context) async {
     await showDialog<void>(
@@ -90,7 +105,7 @@ class ProjectsPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final asyncProjects = ref.watch(projectsProvider);
 
     return Scaffold(
@@ -100,6 +115,17 @@ class ProjectsPage extends ConsumerWidget {
         foregroundColor: Colors.white,
         actions: [
           const PinWindowButton(),
+          // Toggle completed-project visibility. A crossed-out eye signals
+          // they're currently hidden; an open eye means they're shown.
+          IconButton(
+            icon: Icon(
+              _hideCompleted ? Icons.visibility_off : Icons.visibility,
+            ),
+            tooltip: _hideCompleted
+                ? 'Show completed projects'
+                : 'Hide completed projects',
+            onPressed: () => setState(() => _hideCompleted = !_hideCompleted),
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: 'Settings',
@@ -136,6 +162,16 @@ class ProjectsPage extends ConsumerWidget {
   }
 
   Widget _buildBody(BuildContext context, WidgetRef ref, ProjectsView view) {
+    // Split rows into the active set and the completed set. The VM already
+    // orders completed projects last, so filtering preserves that ordering.
+    final completed = view.rows.where((r) => r.isCompleted).toList();
+    final completedCount = completed.length;
+    // Fold completed projects out of view unless the user has revealed them.
+    final visible = _hideCompleted
+        ? view.rows.where((r) => !r.isCompleted).toList()
+        : view.rows;
+
+    // Truly empty: nothing has been created yet.
     if (view.rows.isEmpty) {
       return Center(
         child: Column(
@@ -154,13 +190,64 @@ class ProjectsPage extends ConsumerWidget {
       );
     }
 
+    // Every project is completed and they're currently hidden — show a
+    // celebratory empty state with a one-tap reveal instead of a blank list.
+    if (visible.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.task_alt, size: 48, color: Colors.green[400]),
+            const SizedBox(height: 8),
+            Text(
+              'All caught up!',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$completedCount completed ${completedCount == 1 ? 'project' : 'projects'} hidden.',
+              style: TextStyle(color: Colors.grey[500], fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () => setState(() => _hideCompleted = false),
+              icon: const Icon(Icons.visibility),
+              label: const Text('Show completed projects'),
+            ),
+          ],
+        ),
+      );
+    }
+
     return RefreshIndicator(
       onRefresh: () => ref.read(projectsProvider.notifier).reload(),
       child: ListView.builder(
         padding: const EdgeInsets.all(8),
-        itemCount: view.rows.length,
+        // +1 slot for the "N completed hidden" footer chip when completed
+        // projects are folded away but still exist.
+        itemCount: visible.length + (_hideCompleted && completedCount > 0 ? 1 : 0),
         itemBuilder: (context, index) {
-          final row = view.rows[index];
+          // Footer: a tappable summary that reveals the hidden projects.
+          if (index == visible.length) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Center(
+                child: ActionChip(
+                  avatar: const Icon(Icons.check_circle_outline, size: 18),
+                  label: Text(
+                    '$completedCount completed '
+                    '${completedCount == 1 ? 'project' : 'projects'} hidden',
+                  ),
+                  onPressed: () => setState(() => _hideCompleted = false),
+                ),
+              ),
+            );
+          }
+
+          final row = visible[index];
           return Card(
             child: ListTile(
               leading: ProjectProgressIndicator(
