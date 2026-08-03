@@ -316,9 +316,15 @@ jobs:
 
           APK_PATH="$GITHUB_WORKSPACE/build/app/outputs/flutter-apk/app-release.apk"
           KEYSTORE_PATH="$GITHUB_WORKSPACE/android/android-release.jks"
+          APK_SIGNATURE_OUTPUT="$RUNNER_TEMP/apk-signature.txt"
 
           if [ ! -s "$APK_PATH" ]; then
             echo "::error::找不到 release APK 或檔案大小為 0：$APK_PATH"
+            exit 1
+          fi
+
+          if [ ! -s "$KEYSTORE_PATH" ]; then
+            echo "::error::找不到 Android release keystore：$KEYSTORE_PATH"
             exit 1
           fi
 
@@ -338,28 +344,40 @@ jobs:
 
           echo "使用 apksigner：$APKSIGNER"
 
+          # apksigner verify 本身會在簽章無效時返回非零退出碼。
           "$APKSIGNER" verify \
             --verbose \
             --print-certs \
-            "$APK_PATH" \
-            | tee "$RUNNER_TEMP/apk-signature.txt"
+            "$APK_PATH" |
+            tee "$APK_SIGNATURE_OUTPUT"
 
+          # 相容不同 Build Tools 版本的輸出，例如：
+          #
+          # Signer #1 certificate SHA-256 digest: ...
+          # V2 Signer: certificate SHA-256 digest: ...
+          # V3 Signer: certificate SHA-256 digest: ...
+          #
+          # 只匹配 certificate digest，不會誤取 public key digest。
           APK_SHA256="$(
-            sed -n \
-              's/^Signer #1 certificate SHA-256 digest: //p' \
-              "$RUNNER_TEMP/apk-signature.txt" |
-            head -n 1 |
+            awk -F': ' '
+              /certificate SHA-256 digest:/ {
+                print $NF
+                exit
+              }
+            ' "$APK_SIGNATURE_OUTPUT" |
             tr '[:lower:]' '[:upper:]' |
             tr -d ':[:space:]'
           )"
 
+          # 從 JKS 匯出同一個 alias 的憑證，
+          # 再由 OpenSSL 計算 SHA-256 fingerprint。
           JKS_SHA256="$(
             keytool \
               -exportcert \
+              -rfc \
               -keystore "$KEYSTORE_PATH" \
               -storepass "$KEYSTORE_PASSWORD" \
-              -alias "$KEY_ALIAS" \
-              -rfc |
+              -alias "$KEY_ALIAS" |
             openssl x509 \
               -noout \
               -fingerprint \
@@ -370,7 +388,9 @@ jobs:
           )"
 
           if [ -z "$APK_SHA256" ]; then
-            echo "::error::無法取得 APK signing certificate SHA-256。"
+            echo "::error::無法從 apksigner 輸出取得 APK certificate SHA-256。"
+            echo "::error::完整 apksigner 輸出如下："
+            cat "$APK_SIGNATURE_OUTPUT"
             exit 1
           fi
 
@@ -384,6 +404,8 @@ jobs:
 
           if [ "$APK_SHA256" != "$JKS_SHA256" ]; then
             echo "::error::APK 並非由指定的 Android release keystore 簽署。"
+            echo "::error::APK certificate：$APK_SHA256"
+            echo "::error::JKS certificate：$JKS_SHA256"
             exit 1
           fi
 
@@ -397,7 +419,6 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           echo "APK 簽章及 signing certificate 驗證成功。"
-
       - name: Prepare Android release file
         shell: bash
         run: |
