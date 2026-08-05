@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/material.dart' show Rect;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ConfigService {
@@ -9,6 +10,17 @@ class ConfigService {
   static const String _usernameKey = 'username';
   static const String _passwordKey = 'password';
   static const String _alwaysOnTopKey = 'always_on_top';
+
+  // Persisted desktop window geometry (Windows / macOS). The four bounds keys
+  // hold the window's *normal* (non-maximized, non-full-screen) outer frame;
+  // the maximized / full-screen flags are stored alongside so the window can be
+  // re-applied to the same state on the next launch. See `WindowGeometry`.
+  static const String _windowXKey = 'window_x';
+  static const String _windowYKey = 'window_y';
+  static const String _windowWKey = 'window_w';
+  static const String _windowHKey = 'window_h';
+  static const String _windowMaximizedKey = 'window_maximized';
+  static const String _windowFullScreenKey = 'window_fullscreen';
 
   // Defaults applied on first launch so a brand-new install can connect to
   // the seeded PocketBase backend without any setup. Once the user saves
@@ -39,6 +51,12 @@ class ConfigService {
     _usernameKey,
     _passwordKey,
     _alwaysOnTopKey,
+    _windowXKey,
+    _windowYKey,
+    _windowWKey,
+    _windowHKey,
+    _windowMaximizedKey,
+    _windowFullScreenKey,
   ];
 
   /// Returns the stored key with the current environment's prefix applied.
@@ -85,6 +103,51 @@ class ConfigService {
   Future<bool> getAlwaysOnTop() async {
     final preference = await _prefs();
     return preference.getBool(_key(_alwaysOnTopKey)) ?? false;
+  }
+
+  /// Persists the window's *normal* outer bounds (position + size).
+  ///
+  /// Callers must only pass a bounds measured while the window is in its
+  /// normal (non-maximized, non-full-screen) state — a maximized frame would
+  /// otherwise be restored as the default size.
+  Future<void> saveWindowBounds(Rect bounds) async {
+    final preference = await _prefs();
+    await preference.setDouble(_key(_windowXKey), bounds.left);
+    await preference.setDouble(_key(_windowYKey), bounds.top);
+    await preference.setDouble(_key(_windowWKey), bounds.width);
+    await preference.setDouble(_key(_windowHKey), bounds.height);
+  }
+
+  /// Returns the last saved normal bounds, or `null` if any component is
+  /// missing (e.g. first launch, or a partial write).
+  Future<Rect?> getWindowBounds() async {
+    final preference = await _prefs();
+    final x = preference.getDouble(_key(_windowXKey));
+    final y = preference.getDouble(_key(_windowYKey));
+    final w = preference.getDouble(_key(_windowWKey));
+    final h = preference.getDouble(_key(_windowHKey));
+    if (x == null || y == null || w == null || h == null) return null;
+    return Rect.fromLTWH(x, y, w, h);
+  }
+
+  Future<void> saveWindowMaximized(bool value) async {
+    final preference = await _prefs();
+    await preference.setBool(_key(_windowMaximizedKey), value);
+  }
+
+  Future<bool> getWindowMaximized() async {
+    final preference = await _prefs();
+    return preference.getBool(_key(_windowMaximizedKey)) ?? false;
+  }
+
+  Future<void> saveWindowFullScreen(bool value) async {
+    final preference = await _prefs();
+    await preference.setBool(_key(_windowFullScreenKey), value);
+  }
+
+  Future<bool> getWindowFullScreen() async {
+    final preference = await _prefs();
+    return preference.getBool(_key(_windowFullScreenKey)) ?? false;
   }
 
   Future<void> clearConfig() async {
