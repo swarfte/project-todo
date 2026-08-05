@@ -24,6 +24,16 @@ Future<void> main() async {
     await container.read(alwaysOnTopProvider.notifier).load();
   }
 
+  // Restore the saved window size/position (and maximized / full-screen state)
+  // before the first frame, so the window appears where the user left it
+  // rather than at the default size. No-op on Android / web — see
+  // [WindowGeometryController]. Initializing the geometry plugin is idempotent
+  // with the pin plugin's init above.
+  final geometry = container.read(windowGeometryControllerProvider);
+  await windowGeometry.ensureInitialized();
+  await geometry.restore();
+  geometry.startTracking();
+
   runApp(
     UncontrolledProviderScope(
       container: container,
